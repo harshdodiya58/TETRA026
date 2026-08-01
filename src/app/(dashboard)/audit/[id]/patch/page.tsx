@@ -26,9 +26,9 @@ export default function PatchGeneration({ params }: { params: Promise<{ id: stri
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ course: courseTitle, market: marketBias }),
         });
-        
+
         const data = await res.json();
-        
+
         if (!res.ok || !data.success) {
           throw new Error(data.error || "Failed to generate patch from API.");
         }
@@ -49,9 +49,9 @@ export default function PatchGeneration({ params }: { params: Promise<{ id: stri
           }
         }, 20);
       } catch (e: any) {
-        console.error("Patch Generation Error:", e);
+        console.log("Patch Generation Error:", e);
         setIsGenerating(false);
-        setStreamedText(`Error: ${e.message || "Failed to connect to AI API. Did you restart the server after adding the .env.local file?"}`);
+        setStreamedText(`Error: ${e.message || "Failed to connect to AI API."}`);
       }
     };
 
@@ -98,20 +98,20 @@ export default function PatchGeneration({ params }: { params: Promise<{ id: stri
       <div className="w-full flex-1 rounded-[2rem] border border-white/10 bg-[#050505] shadow-2xl overflow-hidden flex flex-col mb-8 relative">
         <div className="px-6 py-4 border-b border-white/5 bg-white/[0.02] flex justify-between items-center">
           <div className="flex items-center gap-3">
-             <div className="flex gap-2">
-                <div className="w-3 h-3 rounded-full bg-red-500/50" />
-                <div className="w-3 h-3 rounded-full bg-yellow-500/50" />
-                <div className="w-3 h-3 rounded-full bg-green-500/50" />
-             </div>
-             <span className="text-xs text-white/40 font-mono ml-4">Llama-3.3-70b Streaming...</span>
+            <div className="flex gap-2">
+              <div className="w-3 h-3 rounded-full bg-red-500/50" />
+              <div className="w-3 h-3 rounded-full bg-yellow-500/50" />
+              <div className="w-3 h-3 rounded-full bg-green-500/50" />
+            </div>
+            <span className="text-xs text-white/40 font-mono ml-4">Llama-3.3-70b Streaming...</span>
           </div>
           {isGenerating ? (
             <div className="flex items-center gap-2 text-xs font-mono text-blue-400">
-               <span className="relative flex h-2 w-2">
-                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                 <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
-               </span>
-               ~ 74 TPS
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+              </span>
+              ~ 74 TPS
             </div>
           ) : (
             <div className="flex items-center gap-2 text-xs font-mono text-green-400">

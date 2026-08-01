@@ -91,9 +91,9 @@ Retrieved Graph Context: Missing modern tooling prerequisites.`;
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error("NVIDIA API Failed:", errText);
+      console.log("NVIDIA API Failed:", errText); // Changed to log so it doesn't trigger dev overlay in terminal
       return NextResponse.json(
-        { success: false, error: "NVIDIA API rejected the request." },
+        { success: false, error: `NVIDIA API Error: ${errText}` },
         { status: 502 }
       );
     }
