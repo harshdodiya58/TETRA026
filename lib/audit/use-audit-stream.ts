@@ -30,6 +30,8 @@ export type AuditResult = {
   gap: GapReport | null;
   /** Null when Neo4j is unconfigured or unreachable. */
   graph: GraphInsight | null;
+  /** Null when the audit could not be persisted; the result is still valid. */
+  sessionId: string | null;
 };
 
 export type RunState = "idle" | "running" | "done" | "failed";
@@ -44,6 +46,7 @@ const STAGE_ORDER: Stage[] = [
   "llm",
   "bloom",
   "cap",
+  "save",
 ];
 
 /** Stages owned by the patch pass, reset when a patch is regenerated. */
@@ -217,7 +220,7 @@ export function useAuditStream() {
   );
 
   const runPatch = useCallback(
-    async (structure: SyllabusStructure, gap: GapReport) => {
+    async (structure: SyllabusStructure, gap: GapReport, sessionId: string | null) => {
       setPatch(null);
       setPatchError(null);
       setPatchState("running");
@@ -235,7 +238,7 @@ export function useAuditStream() {
         const response = await fetch("/api/patch/stream", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ structure, gap }),
+          body: JSON.stringify({ structure, gap, sessionId }),
         });
 
         await consume(response, (event) => {

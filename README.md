@@ -136,7 +136,7 @@ but logs a deprecation warning.
 | # | Milestone | State |
 |---|---|---|
 | 1 | Landing page, design system, auth shell | ✅ |
-| 2 | Supabase schema, RLS, RBAC, domain whitelist | 🟡 SQL written, not yet applied |
+| 2 | Supabase schema, RLS, RBAC, persistence | ✅ (run `0002` for pgvector) |
 | 3 | Syllabus ingestion and structural chunker | ✅ |
 | 4 | Embeddings and job-market corpus | ✅ in-memory; pgvector pending |
 | 5 | Neo4j skill graph and traversal | ✅ |

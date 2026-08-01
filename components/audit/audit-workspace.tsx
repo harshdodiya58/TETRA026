@@ -291,7 +291,7 @@ export function AuditWorkspace() {
                 <div className="flex flex-col items-start gap-2">
                   <Button
                     type="button"
-                    onClick={() => runPatch(result.structure, result.gap!)}
+                    onClick={() => runPatch(result.structure, result.gap!, result.sessionId)}
                     disabled={patchState === "running"}
                     className="px-6 py-3"
                   >

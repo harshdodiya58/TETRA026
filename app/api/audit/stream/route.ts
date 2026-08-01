@@ -11,6 +11,7 @@ import { traverseSkillGraph } from "@/lib/graph/traverse";
 import { MARKETS, type MarketId } from "@/data/job-market";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/env";
+import { loadProfile, persistAudit } from "@/lib/db/audit";
 
 export const runtime = "nodejs";
 
@@ -37,6 +38,7 @@ export async function POST(request: Request) {
   // reachable anonymously. proxy.ts guards the /audit page but deliberately
   // does not cover /api, so the check belongs here.
   let supabase: SupabaseClient | null = null;
+  let userId: string | null = null;
 
   if (isSupabaseConfigured) {
     supabase = await createClient();
@@ -47,6 +49,7 @@ export async function POST(request: Request) {
     if (!user) {
       return Response.json({ error: "Sign in to run an audit." }, { status: 401 });
     }
+    userId = user.id;
   }
 
   let file: File;
@@ -84,7 +87,7 @@ export async function POST(request: Request) {
       const unsubscribe = bus.subscribe(send);
 
       try {
-        await runAudit(bus, file, market, supabase);
+        await runAudit(bus, file, market, supabase, userId);
       } catch (error) {
         bus.emit({
           kind: "fatal",
@@ -118,6 +121,7 @@ async function runAudit(
   file: File,
   market: MarketId,
   supabase: SupabaseClient | null,
+  userId: string | null,
 ) {
   const parsed = await bus.span("parse", async (sink) => {
     const document = await parseSyllabus(file);
@@ -165,20 +169,85 @@ async function runAudit(
   bus.skip("bloom", "Runs against generated Course Outcomes.");
   bus.skip("cap", "Runs against the generated patch.");
 
+  const document = {
+    name: file.name,
+    format: parsed.kind,
+    pages: parsed.pages,
+    characters: parsed.characters,
+  };
+
+  const sessionId = await persist(bus, supabase, userId, {
+    market,
+    document,
+    structure,
+    gap,
+    rawText: parsed.text,
+  });
+
   bus.emit({
     kind: "result",
-    payload: {
-      document: {
-        name: file.name,
-        format: parsed.kind,
-        pages: parsed.pages,
-        characters: parsed.characters,
-      },
-      structure,
-      gap,
-      graph,
-    },
+    payload: { document, structure, gap, graph, sessionId },
   });
+}
+
+/**
+ * Writes the completed audit away.
+ *
+ * Deliberately non-fatal. The audit has already run and the user is watching
+ * its results; failing the request because a row would not insert would discard
+ * work that succeeded. A failure is reported on the readout and the result is
+ * still returned.
+ */
+async function persist(
+  bus: TelemetryBus,
+  supabase: SupabaseClient | null,
+  userId: string | null,
+  params: {
+    market: MarketId;
+    document: { name: string; format: string; pages: number | null; characters: number };
+    structure: SyllabusStructure;
+    gap: GapReport | null;
+    rawText: string;
+  },
+): Promise<string | null> {
+  if (!supabase || !userId) {
+    bus.skip("save", "Not signed in — this audit was not stored.");
+    return null;
+  }
+
+  try {
+    return await bus.span("save", async (sink) => {
+      const profile = await loadProfile(supabase, userId);
+
+      if (!profile) {
+        // Without a profile row RLS rejects every insert, and the cause is
+        // almost always a missing signup trigger rather than a code fault.
+        sink.note(
+          "No profile row for this account, so nothing could be stored. Re-run supabase/migrations/0001_init.sql.",
+        );
+        return null;
+      }
+
+      const { result, error } = await persistAudit(supabase, {
+        userId,
+        institutionId: profile.institution_id,
+        ...params,
+      });
+
+      if (error || !result) {
+        sink.note(`Not stored: ${error ?? "unknown error"}`);
+        return null;
+      }
+
+      sink.metric("session", result.sessionId.slice(0, 8));
+      sink.metric("units stored", params.structure.units.length);
+      sink.metric("gap report", params.gap ? "yes" : "no");
+
+      return result.sessionId;
+    });
+  } catch {
+    return null;
+  }
 }
 
 async function runGraphTraversal(bus: TelemetryBus, gap: GapReport | null) {

@@ -18,7 +18,8 @@ export type Stage =
   | "gap"
   | "llm"
   | "bloom"
-  | "cap";
+  | "cap"
+  | "save";
 
 export const STAGE_LABELS: Record<Stage, string> = {
   parse: "Document extraction",
@@ -30,6 +31,7 @@ export const STAGE_LABELS: Record<Stage, string> = {
   llm: "Patch generation",
   bloom: "Bloom's validation",
   cap: "15% cap check",
+  save: "Persistence",
 };
 
 export type TelemetryEvent =

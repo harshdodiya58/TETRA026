@@ -4,6 +4,7 @@ import { isGenerationConfigured, generationChain } from "@/lib/ai/generate";
 import { lexiconSize } from "@/lib/obe/bloom";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/env";
+import { persistPatch } from "@/lib/db/audit";
 import type { GapReport } from "@/lib/gap/score";
 import type { SyllabusStructure } from "@/lib/syllabus/chunk";
 
@@ -36,14 +37,20 @@ export async function POST(request: Request) {
 
   let structure: SyllabusStructure;
   let gap: GapReport;
+  let sessionId: string | null = null;
 
   try {
-    const body = (await request.json()) as { structure?: SyllabusStructure; gap?: GapReport };
+    const body = (await request.json()) as {
+      structure?: SyllabusStructure;
+      gap?: GapReport;
+      sessionId?: string | null;
+    };
     if (!body.structure || !body.gap) {
       return Response.json({ error: "structure and gap are required." }, { status: 400 });
     }
     structure = body.structure;
     gap = body.gap;
+    sessionId = body.sessionId ?? null;
   } catch {
     return Response.json({ error: "Malformed request body." }, { status: 400 });
   }
@@ -70,7 +77,7 @@ export async function POST(request: Request) {
       const unsubscribe = bus.subscribe(send);
 
       try {
-        await runPatch(bus, structure, gap);
+        await runPatch(bus, structure, gap, sessionId);
       } catch (error) {
         bus.emit({
           kind: "fatal",
@@ -98,7 +105,12 @@ export async function POST(request: Request) {
   });
 }
 
-async function runPatch(bus: TelemetryBus, structure: SyllabusStructure, gap: GapReport) {
+async function runPatch(
+  bus: TelemetryBus,
+  structure: SyllabusStructure,
+  gap: GapReport,
+  sessionId: string | null,
+) {
   const patch = await bus.span("llm", async (sink) => {
     const chain = generationChain();
     sink.metric("chain", chain.map((p) => p.label).join(" → "));
@@ -154,6 +166,22 @@ async function runPatch(bus: TelemetryBus, structure: SyllabusStructure, gap: Ga
       );
     }
   });
+
+  // Non-fatal, as in the audit route: the amendment has already been generated
+  // and validated, so a storage failure must not discard it.
+  if (!sessionId) {
+    bus.skip("save", "No stored audit session to attach this amendment to.");
+  } else {
+    await bus.span("save", async (sink) => {
+      const supabase = await createClient();
+      const error = await persistPatch(supabase, sessionId, patch);
+      if (error) sink.note(`Not stored: ${error}`);
+      else {
+        sink.metric("session", sessionId.slice(0, 8));
+        sink.metric("status", "patched");
+      }
+    });
+  }
 
   bus.emit({ kind: "result", payload: patch });
 }
