@@ -50,7 +50,9 @@ function StageRow({ stage, state }: { stage: Stage; state: StageState }) {
           {stage}
         </span>
 
-        <span className="min-w-0 flex-1 truncate text-muted">
+        {/* Wraps rather than truncates. These are the measurements the product
+            exists to show, and "15% budget 6.7…" hides the value that matters. */}
+        <span className="min-w-0 flex-1 break-words text-muted">
           {state.status === "skipped" ? (
             <span className="text-faint">{state.reason ?? "not run"}</span>
           ) : state.metrics.length > 0 ? (
@@ -81,7 +83,10 @@ function StageRow({ stage, state }: { stage: Stage; state: StageState }) {
       </div>
 
       {state.notes.map((note, i) => (
-        <p key={i} className="mt-1.5 pl-[4.25rem] text-[11.5px] leading-relaxed text-warn">
+        <p
+          key={i}
+          className="mt-1.5 break-words pl-[4.25rem] text-[11.5px] leading-relaxed text-warn"
+        >
           {note}
         </p>
       ))}

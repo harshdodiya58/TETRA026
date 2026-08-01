@@ -115,7 +115,10 @@ export function AuditWorkspace() {
 
   return (
     <>
-    <div className="no-print grid gap-10 lg:grid-cols-[22rem_1fr] lg:items-start">
+    {/* minmax(0,1fr) rather than 1fr: a 1fr track defaults to min-width:auto,
+        so long unbreakable strings in the audit log size the column to
+        max-content and push the whole page into horizontal scroll. */}
+    <div className="no-print grid gap-10 lg:grid-cols-[22rem_minmax(0,1fr)] lg:items-start">
       {/* Configuration */}
       <aside className="space-y-6">
         <section className="panel rounded-lg p-6">
@@ -224,7 +227,7 @@ export function AuditWorkspace() {
       </aside>
 
       {/* Readout */}
-      <div className="space-y-8">
+      <div className="min-w-0 space-y-8">
         <TelemetryHud
           stages={stages}
           stageOrder={stageOrder}
