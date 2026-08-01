@@ -80,6 +80,27 @@ export function LoginForm() {
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setStatus("sending");
+    setMessage(null);
+
+    // Attempted before the domain check so the configured address works
+    // regardless of the institutional whitelist. Every other address gets a
+    // 403 or 404 here and continues to the normal magic-link flow below.
+    try {
+      const bypass = await fetch("/api/auth/bypass", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+
+      if (bypass.ok) {
+        router.replace(next);
+        router.refresh();
+        return;
+      }
+    } catch {
+      // Network failure here is not fatal — fall through to the magic link.
+    }
 
     const domainError = institutionalEmailError(email.trim());
     if (domainError) {
@@ -87,9 +108,6 @@ export function LoginForm() {
       setMessage(domainError);
       return;
     }
-
-    setStatus("sending");
-    setMessage(null);
 
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOtp({
