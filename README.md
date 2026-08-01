@@ -52,6 +52,48 @@ dimension is undefined — so failing over between embedding models mid-corpus i
 not a resilience feature. One embedding model is pinned for the entire corpus, every row records its
 `embedding_model` and `dim`, and **the Gemini fallback covers generation only.**
 
+`nv-embedqa-e5-v5` is **asymmetric**: every request must carry `input_type` — `"passage"` for corpus
+documents, `"query"` for the syllabus text matched against them. Omitting it returns HTTP 400.
+
+### Model selection — measured, not assumed
+
+⚠️ **`.env.local.example` still lists the original spec's model IDs. Both are unusable.** Override
+them. Measured against the live free endpoints:
+
+| Model | Result |
+|---|---|
+| `meta/llama-3.3-70b-instruct` | ❌ 52s to first token, then HTTP 504 |
+| `gemini-1.5-flash` | ❌ 404 — retired from v1beta |
+| `mistralai/mistral-nemotron` | ✅ 4.1s total, **315ms TTFT** — primary |
+| `meta/llama-3.1-8b-instruct` | ✅ 1.0s total, 338ms TTFT — first fallback |
+| `gemini-3.5-flash-lite` | ✅ 1.3s — cross-provider fallback |
+| `gemini-2.5-flash`, `gemini-3.6-flash` | ⚠️ reasoning tier: `maxOutputTokens` is consumed by thinking, ~15 usable tokens |
+
+Working values:
+
+```bash
+NVIDIA_NIM_CHAT_MODEL=mistralai/mistral-nemotron
+GEMINI_CHAT_MODEL=gemini-3.5-flash-lite
+```
+
+### A note on gap scoring
+
+Alignment is **demand-weighted coverage scoped to the course's own domain**:
+
+```
+alignment = Σ demand(covered ∩ in-scope) / Σ demand(in-scope)
+```
+
+Both cutoffs are derived from the similarity distribution of *this* document against *this* corpus —
+in scope above μ, covered above μ + σ — and both are reported in the UI. Fixed constants would
+silently change meaning after an embedding-model swap.
+
+Scoping is not cosmetic. Measured against the entire corpus, a database syllabus is reported as
+missing Git, Docker, and REST APIs: all true, all useless, because no DBMS course should teach them.
+Excluding out-of-domain skills moved the sample audit from a meaningless 31.7% to 52.8%, and turned
+the missing list into query optimisation, Redis caching, connection pooling, and sharding — things a
+Board of Studies can actually act on. The count of excluded skills is reported rather than hidden.
+
 ## Getting started
 
 ```bash
@@ -94,11 +136,28 @@ but logs a deprecation warning.
 | # | Milestone | State |
 |---|---|---|
 | 1 | Landing page, design system, auth shell | ✅ |
-| 2 | Supabase schema, RLS, RBAC, domain whitelist | ◻ |
-| 3 | Syllabus ingestion and structural chunker | ◻ |
-| 4 | Embeddings, pgvector HNSW, job-market seed corpus | ◻ |
+| 2 | Supabase schema, RLS, RBAC, domain whitelist | 🟡 SQL written, not yet applied |
+| 3 | Syllabus ingestion and structural chunker | ✅ |
+| 4 | Embeddings and job-market corpus | ✅ in-memory; pgvector pending |
 | 5 | Neo4j skill graph and traversal | ◻ |
-| 6 | Telemetry bus and live processing HUD | ◻ |
-| 7 | Gap dashboard and obsolete-topic heatmap | ◻ |
+| 6 | Telemetry bus and live processing HUD | ✅ |
+| 7 | Gap dashboard and obsolete-topic heatmap | ✅ |
 | 8 | 15% patch generation with Bloom's and PO validators | ◻ |
 | 9 | BoS proposal PDF/DOCX export | ◻ |
+
+A full audit of the bundled sample currently runs in **~1.3s**: parse 1.7ms, chunk 2.6ms,
+embed 786ms (5 chunks, 6.4 vec/sec), vector 0.3ms, gap 3.7ms.
+
+## Applying the database schema
+
+`supabase/migrations/0001_init.sql` is paste-ready and idempotent. Open the Supabase SQL editor,
+paste the whole file, run it once. It creates the institution/profile/session/document/chunk tables,
+the job-market corpus tables, HNSW indexes, a signup trigger that provisions a profile and
+institution from the email domain, and institution-scoped RLS on every table.
+
+Until it is applied the app runs entirely in memory — audits work, but nothing is persisted between
+sessions.
+
+> The service-role key **cannot** run this. It authenticates against PostgREST, which does not
+> expose DDL. It has to go through the SQL editor, the Supabase CLI, or a direct Postgres
+> connection.

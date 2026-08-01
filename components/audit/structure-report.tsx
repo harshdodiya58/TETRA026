@@ -2,7 +2,7 @@ import type { AuditResult } from "@/lib/audit/use-audit-stream";
 
 /** What the parser actually recovered from the document. */
 export function StructureReport({ result }: { result: AuditResult }) {
-  const { structure, document, chunkCount } = result;
+  const { structure, document } = result;
   const confidence = structure.boundaryConfidence;
 
   const confidenceTone =
@@ -99,11 +99,6 @@ export function StructureReport({ result }: { result: AuditResult }) {
         </section>
       )}
 
-      <footer className="border-t border-[#d6d0c4] pt-4">
-        <p className="font-mono text-[11px] text-faint">
-          {chunkCount} embedding chunks prepared · awaiting vector stage
-        </p>
-      </footer>
     </div>
   );
 }

@@ -6,22 +6,15 @@ import { AlertTriangle, FileUp, Loader2, RotateCcw, Sparkles } from "lucide-reac
 import { Button } from "@/components/ui/button";
 import { TelemetryHud } from "@/components/audit/telemetry-hud";
 import { StructureReport } from "@/components/audit/structure-report";
+import { GapReportView } from "@/components/audit/gap-report";
 import { useAuditStream } from "@/lib/audit/use-audit-stream";
 import { sampleSyllabusFile, SAMPLE_SYLLABUS_NAME } from "@/lib/syllabus/sample";
+import { MARKETS, MARKET_LABELS, type MarketId } from "@/data/job-market";
 import { cn } from "@/lib/utils";
-
-const MARKETS = [
-  { id: "bengaluru", label: "Bengaluru · Tier-1 tech" },
-  { id: "hyderabad", label: "Hyderabad · Tier-1 tech" },
-  { id: "ncr", label: "Delhi NCR" },
-  { id: "pune", label: "Pune" },
-  { id: "national", label: "National average" },
-  { id: "nasscom", label: "NASSCOM FutureSkills" },
-];
 
 export function AuditWorkspace() {
   const { stages, stageOrder, result, error, runState, elapsed, run, reset } = useAuditStream();
-  const [market, setMarket] = useState("bengaluru");
+  const [market, setMarket] = useState<MarketId>("bengaluru");
   const [dragging, setDragging] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -30,7 +23,7 @@ export function AuditWorkspace() {
 
   function start(file: File) {
     setFileName(file.name);
-    void run(file);
+    void run(file, market);
   }
 
   function onDrop(event: DragEvent<HTMLDivElement>) {
@@ -53,21 +46,20 @@ export function AuditWorkspace() {
           <select
             id="market"
             value={market}
-            onChange={(e) => setMarket(e.target.value)}
+            onChange={(e) => setMarket(e.target.value as MarketId)}
             disabled={busy}
             className="mt-2 w-full rounded-md border border-[#d6d0c4] bg-base px-3 py-2.5 text-sm
                        text-ink transition-colors focus:border-accent/50 focus:outline-none
                        focus:ring-2 focus:ring-accent/20 disabled:opacity-60"
           >
-            {MARKETS.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.label}
+            {MARKETS.map((id) => (
+              <option key={id} value={id}>
+                {MARKET_LABELS[id]}
               </option>
             ))}
           </select>
           <p className="mt-2 text-[11px] leading-relaxed text-faint">
-            Applies at the gap-scoring stage, which is not yet wired — the readout marks it as not
-            run.
+            Weights the gap analysis toward that market&apos;s hiring demand.
           </p>
 
           <div className="mt-6 border-t border-[#d6d0c4] pt-5">
@@ -192,15 +184,22 @@ export function AuditWorkspace() {
           )}
 
           {result && (
-            <motion.section
+            <motion.div
               key="result"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-              className="panel lift rounded-lg p-7"
+              className="space-y-8"
             >
-              <StructureReport result={result} />
-            </motion.section>
+              {result.gap && (
+                <section className="panel lift rounded-lg p-7">
+                  <GapReportView report={result.gap} />
+                </section>
+              )}
+              <section className="panel lift rounded-lg p-7">
+                <StructureReport result={result} />
+              </section>
+            </motion.div>
           )}
 
           {runState === "idle" && (

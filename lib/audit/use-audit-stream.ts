@@ -3,6 +3,8 @@
 import { useCallback, useRef, useState } from "react";
 import type { Stage, TelemetryEvent } from "@/lib/telemetry/bus";
 import type { SyllabusStructure } from "@/lib/syllabus/chunk";
+import type { GapReport } from "@/lib/gap/score";
+import type { MarketId } from "@/data/job-market";
 
 export type StageStatus = "idle" | "running" | "done" | "skipped" | "error";
 
@@ -22,7 +24,8 @@ export type AuditResult = {
     characters: number;
   };
   structure: SyllabusStructure;
-  chunkCount: number;
+  /** Null when a prerequisite stage was skipped or failed. */
+  gap: GapReport | null;
 };
 
 export type RunState = "idle" | "running" | "done" | "failed";
@@ -131,7 +134,7 @@ export function useAuditStream() {
   }, []);
 
   const run = useCallback(
-    async (file: File) => {
+    async (file: File, market: MarketId) => {
       abortRef.current?.abort();
       const controller = new AbortController();
       abortRef.current = controller;
@@ -147,6 +150,7 @@ export function useAuditStream() {
       try {
         const body = new FormData();
         body.append("file", file);
+        body.append("market", market);
 
         const response = await fetch("/api/audit/stream", {
           method: "POST",

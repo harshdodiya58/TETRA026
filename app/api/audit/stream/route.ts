@@ -1,9 +1,18 @@
 import { TelemetryBus, encodeSSE, type TelemetryEvent } from "@/lib/telemetry/bus";
 import { ParseError, parseSyllabus } from "@/lib/syllabus/parse";
-import { chunkSyllabus, toEmbeddingChunks } from "@/lib/syllabus/chunk";
+import { chunkSyllabus, type SyllabusStructure } from "@/lib/syllabus/chunk";
+import { embedBatch, isNimConfigured, EMBEDDING_DIM } from "@/lib/ai/nim";
+import { corpusMeta, loadCorpus } from "@/lib/gap/corpus";
+import { analyseGap } from "@/lib/gap/score";
+import { MARKETS, type MarketId } from "@/data/job-market";
+import { createClient } from "@/lib/supabase/server";
+import { isSupabaseConfigured } from "@/lib/env";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+
+/** nv-embedqa-e5-v5 accepts ~512 tokens; truncate rather than let it 400. */
+const MAX_EMBED_CHARS = 1800;
 
 /**
  * Streams the audit pipeline as Server-Sent Events.
@@ -13,7 +22,22 @@ export const maxDuration = 60;
  * EventSource. One-way server→client, no extra infrastructure.
  */
 export async function POST(request: Request) {
+  // This endpoint spends NVIDIA NIM credits on every call, so it must not be
+  // reachable anonymously. proxy.ts guards the /audit page but deliberately
+  // does not cover /api, so the check belongs here.
+  if (isSupabaseConfigured) {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return Response.json({ error: "Sign in to run an audit." }, { status: 401 });
+    }
+  }
+
   let file: File;
+  let market: MarketId = "bengaluru";
 
   try {
     const form = await request.formData();
@@ -22,6 +46,11 @@ export async function POST(request: Request) {
       return Response.json({ error: "No file supplied." }, { status: 400 });
     }
     file = candidate;
+
+    const requested = form.get("market");
+    if (typeof requested === "string" && (MARKETS as readonly string[]).includes(requested)) {
+      market = requested as MarketId;
+    }
   } catch {
     return Response.json({ error: "Malformed upload." }, { status: 400 });
   }
@@ -42,7 +71,7 @@ export async function POST(request: Request) {
       const unsubscribe = bus.subscribe(send);
 
       try {
-        await runAudit(bus, file);
+        await runAudit(bus, file, market);
       } catch (error) {
         bus.emit({
           kind: "fatal",
@@ -71,7 +100,7 @@ export async function POST(request: Request) {
   });
 }
 
-async function runAudit(bus: TelemetryBus, file: File) {
+async function runAudit(bus: TelemetryBus, file: File, market: MarketId) {
   const parsed = await bus.span("parse", async (sink) => {
     const document = await parseSyllabus(file);
     sink.metric("file", file.name);
@@ -92,16 +121,11 @@ async function runAudit(bus: TelemetryBus, file: File) {
     if (result.summedUnitHours !== null) {
       sink.metric("lecture hours", result.summedUnitHours, "h");
     }
-    if (result.declaredTotalHours !== null) {
-      sink.metric("declared total", result.declaredTotalHours, "h");
-    }
     sink.metric("boundary confidence", result.boundaryConfidence.toFixed(2));
 
     if (result.units.length === 0) {
       sink.note("No unit headings matched. Check the document uses UNIT or MODULE headings.");
     }
-    // A real disagreement between declared and summed hours matters: the 15%
-    // budget is computed from these, so surface it rather than paper over it.
     if (
       result.declaredTotalHours !== null &&
       result.summedUnitHours !== null &&
@@ -115,15 +139,11 @@ async function runAudit(bus: TelemetryBus, file: File) {
     return result;
   });
 
-  const chunks = toEmbeddingChunks(structure);
+  const gap = await runGapAnalysis(bus, structure, market);
 
-  // Honest reporting for stages that are not built yet. The readout marks these
-  // unavailable rather than emitting a plausible-looking number.
-  bus.skip("embed", "Vector embedding lands in the next milestone.");
-  bus.skip("vector", "Requires the embedded job-market corpus.");
-  bus.skip("graph", "Requires the Neo4j skill graph.");
-  bus.skip("gap", "Requires embeddings and the job corpus.");
-  bus.skip("llm", "Patch generation lands after gap analysis.");
+  // Not built yet. Reported as not run rather than given a plausible number.
+  bus.skip("graph", "Neo4j skill graph lands in the next milestone.");
+  bus.skip("llm", "Patch generation lands after the graph stage.");
   bus.skip("bloom", "Runs against generated Course Outcomes.");
   bus.skip("cap", "Runs against the generated patch.");
 
@@ -137,7 +157,102 @@ async function runAudit(bus: TelemetryBus, file: File) {
         characters: parsed.characters,
       },
       structure,
-      chunkCount: chunks.length,
+      gap,
     },
+  });
+}
+
+async function runGapAnalysis(
+  bus: TelemetryBus,
+  structure: SyllabusStructure,
+  market: MarketId,
+) {
+  if (structure.units.length === 0) {
+    bus.skip("embed", "No units were recovered to embed.");
+    bus.skip("vector", "Requires embedded units.");
+    bus.skip("gap", "Requires embedded units.");
+    return null;
+  }
+
+  if (!isNimConfigured) {
+    bus.skip("embed", "NVIDIA_NIM_API_KEY is not set.");
+    bus.skip("vector", "Requires embeddings.");
+    bus.skip("gap", "Requires embeddings.");
+    return null;
+  }
+
+  let unitVectors: number[][];
+
+  try {
+    unitVectors = await bus.span("embed", async (sink) => {
+      const texts = structure.units.map((unit) =>
+        `${unit.label}. ${unit.title}\n${unit.body}`.trim().slice(0, MAX_EMBED_CHARS),
+      );
+
+      const startedAt = performance.now();
+      // Syllabus text is the search side of an asymmetric model, so "query".
+      const batch = await embedBatch(texts, "query");
+      const seconds = (performance.now() - startedAt) / 1000;
+
+      sink.metric("chunks", texts.length);
+      sink.metric("dimension", batch.dim);
+      sink.metric("throughput", (texts.length / seconds).toFixed(1), "vec/sec");
+      sink.metric("prompt tokens", batch.promptTokens);
+      sink.metric("model", batch.model);
+
+      return batch.vectors;
+    });
+  } catch (error) {
+    // The stage already reported its own error; downstream stages cannot run.
+    bus.skip("vector", "Embedding failed.");
+    bus.skip("gap", "Embedding failed.");
+    bus.emit({
+      kind: "note",
+      stage: "embed",
+      message: error instanceof Error ? error.message : "Embedding failed.",
+    });
+    return null;
+  }
+
+  const corpus = await bus.span("vector", async (sink) => {
+    const entries = loadCorpus();
+    const meta = corpusMeta();
+
+    sink.metric("corpus skills", entries.length);
+    sink.metric("comparisons", entries.length * unitVectors.length);
+    sink.metric("index", "in-memory exact");
+    sink.metric("dimension", meta.dim);
+
+    if (meta.dim !== EMBEDDING_DIM) {
+      sink.note(
+        `Corpus was embedded at ${meta.dim} dimensions but the runtime model returns ${EMBEDDING_DIM}. Re-run the seed script.`,
+      );
+    }
+    // pgvector HNSW replaces the exact scan once the schema exists; at 45
+    // skills an exact scan is faster than an index would be anyway.
+    sink.note("Exact scan over the seeded corpus — pgvector HNSW pending database access.");
+
+    return entries;
+  });
+
+  return bus.span("gap", async (sink) => {
+    const report = analyseGap(structure.units, unitVectors, corpus, market);
+
+    sink.metric("market", market);
+    sink.metric("alignment", report.alignment.toFixed(1), "%");
+    sink.metric("covered", `${report.coveredSkillCount}/${report.inScopeSkillCount} in scope`);
+    sink.metric("out of scope", report.outOfScopeSkillCount);
+    sink.metric("floor / cutoff", `${report.relevanceFloor.toFixed(3)} / ${report.threshold.toFixed(3)}`);
+    sink.metric("σ", report.similarityStdDev.toFixed(3));
+    sink.metric("red-flagged", report.units.filter((u) => u.redFlagged).length);
+    sink.metric("missing", report.missing.length);
+
+    if (report.modifiableHours !== null) {
+      sink.metric("15% budget", report.modifiableHours.toFixed(2), "h");
+    } else {
+      sink.note("Contact hours could not be determined, so no 15% budget was computed.");
+    }
+
+    return report;
   });
 }
