@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import type { Stage, TelemetryEvent } from "@/lib/telemetry/bus";
 import type { SyllabusStructure } from "@/lib/syllabus/chunk";
 import type { GapReport } from "@/lib/gap/score";
+import type { SyllabusPatch } from "@/lib/patch/generate";
 import type { MarketId } from "@/data/job-market";
 
 export type StageStatus = "idle" | "running" | "done" | "skipped" | "error";
@@ -42,24 +43,32 @@ const STAGE_ORDER: Stage[] = [
   "cap",
 ];
 
+/** Stages owned by the patch pass, reset when a patch is regenerated. */
+const PATCH_STAGES: Stage[] = ["llm", "bloom", "cap"];
+
+function blankStage(): StageState {
+  return { status: "idle", ms: null, metrics: [], notes: [] };
+}
+
 function emptyStages(): Record<Stage, StageState> {
   const initial = {} as Record<Stage, StageState>;
-  for (const stage of STAGE_ORDER) {
-    initial[stage] = { status: "idle", ms: null, metrics: [], notes: [] };
-  }
+  for (const stage of STAGE_ORDER) initial[stage] = blankStage();
   return initial;
 }
 
 export function useAuditStream() {
   const [stages, setStages] = useState<Record<Stage, StageState>>(emptyStages);
   const [result, setResult] = useState<AuditResult | null>(null);
+  const [patch, setPatch] = useState<SyllabusPatch | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [patchError, setPatchError] = useState<string | null>(null);
   const [runState, setRunState] = useState<RunState>("idle");
+  const [patchState, setPatchState] = useState<RunState>("idle");
   const [elapsed, setElapsed] = useState<number | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
 
-  const apply = useCallback((event: TelemetryEvent) => {
+  const applyStageEvent = useCallback((event: TelemetryEvent) => {
     switch (event.kind) {
       case "stage-start":
         setStages((prev) => ({
@@ -119,19 +128,42 @@ export function useAuditStream() {
           },
         }));
         break;
-
-      case "result":
-        setResult(event.payload as AuditResult);
-        break;
-
-      case "fatal":
-        setError(event.message);
-        // Must also flip run state, or the stream ending would mark a failed
-        // audit as "done" and the UI would show success next to an error.
-        setRunState("failed");
-        break;
     }
   }, []);
+
+  /** Reads an SSE body, dispatching each frame. Frames can straddle chunks. */
+  const consume = useCallback(
+    async (response: Response, onEvent: (event: TelemetryEvent) => void) => {
+      if (!response.ok || !response.body) {
+        const detail = await response.json().catch(() => null);
+        throw new Error(detail?.error ?? `Request failed (${response.status}).`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const frames = buffer.split("\n\n");
+        buffer = frames.pop() ?? "";
+
+        for (const frame of frames) {
+          const line = frame.trim();
+          if (!line.startsWith("data:")) continue;
+          try {
+            onEvent(JSON.parse(line.slice(5).trim()) as TelemetryEvent);
+          } catch {
+            // A malformed frame should not abort an otherwise good run.
+          }
+        }
+      }
+    },
+    [],
+  );
 
   const run = useCallback(
     async (file: File, market: MarketId) => {
@@ -141,11 +173,15 @@ export function useAuditStream() {
 
       setStages(emptyStages());
       setResult(null);
+      setPatch(null);
       setError(null);
+      setPatchError(null);
       setElapsed(null);
+      setPatchState("idle");
       setRunState("running");
 
       const started = performance.now();
+      let failed = false;
 
       try {
         const body = new FormData();
@@ -158,54 +194,88 @@ export function useAuditStream() {
           signal: controller.signal,
         });
 
-        if (!response.ok || !response.body) {
-          const detail = await response.json().catch(() => null);
-          throw new Error(detail?.error ?? `Audit request failed (${response.status}).`);
-        }
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-
-        // SSE frames are separated by a blank line; a frame can straddle chunks.
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const frames = buffer.split("\n\n");
-          buffer = frames.pop() ?? "";
-
-          for (const frame of frames) {
-            const line = frame.trim();
-            if (!line.startsWith("data:")) continue;
-            try {
-              apply(JSON.parse(line.slice(5).trim()) as TelemetryEvent);
-            } catch {
-              // A malformed frame should not abort an otherwise good run.
-            }
-          }
-        }
+        await consume(response, (event) => {
+          if (event.kind === "result") setResult(event.payload as AuditResult);
+          else if (event.kind === "fatal") {
+            failed = true;
+            setError(event.message);
+          } else applyStageEvent(event);
+        });
 
         setElapsed(Math.round(performance.now() - started));
-        setRunState((prev) => (prev === "running" ? "done" : prev));
+        setRunState(failed ? "failed" : "done");
       } catch (err) {
         if (controller.signal.aborted) return;
         setError(err instanceof Error ? err.message : "The audit failed unexpectedly.");
         setRunState("failed");
       }
     },
-    [apply],
+    [applyStageEvent, consume],
+  );
+
+  const runPatch = useCallback(
+    async (structure: SyllabusStructure, gap: GapReport) => {
+      setPatch(null);
+      setPatchError(null);
+      setPatchState("running");
+
+      // Clear only the patch stages so the audit readout above stays intact.
+      setStages((prev) => {
+        const next = { ...prev };
+        for (const stage of PATCH_STAGES) next[stage] = blankStage();
+        return next;
+      });
+
+      let failed = false;
+
+      try {
+        const response = await fetch("/api/patch/stream", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ structure, gap }),
+        });
+
+        await consume(response, (event) => {
+          if (event.kind === "result") setPatch(event.payload as SyllabusPatch);
+          else if (event.kind === "fatal") {
+            failed = true;
+            setPatchError(event.message);
+          } else applyStageEvent(event);
+        });
+
+        setPatchState(failed ? "failed" : "done");
+      } catch (err) {
+        setPatchError(err instanceof Error ? err.message : "Patch generation failed.");
+        setPatchState("failed");
+      }
+    },
+    [applyStageEvent, consume],
   );
 
   const reset = useCallback(() => {
     abortRef.current?.abort();
     setStages(emptyStages());
     setResult(null);
+    setPatch(null);
     setError(null);
+    setPatchError(null);
     setElapsed(null);
     setRunState("idle");
+    setPatchState("idle");
   }, []);
 
-  return { stages, stageOrder: STAGE_ORDER, result, error, runState, elapsed, run, reset };
+  return {
+    stages,
+    stageOrder: STAGE_ORDER,
+    result,
+    patch,
+    error,
+    patchError,
+    runState,
+    patchState,
+    elapsed,
+    run,
+    runPatch,
+    reset,
+  };
 }

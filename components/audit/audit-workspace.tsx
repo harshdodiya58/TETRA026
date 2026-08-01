@@ -7,13 +7,27 @@ import { Button } from "@/components/ui/button";
 import { TelemetryHud } from "@/components/audit/telemetry-hud";
 import { StructureReport } from "@/components/audit/structure-report";
 import { GapReportView } from "@/components/audit/gap-report";
+import { PatchView } from "@/components/audit/patch-view";
 import { useAuditStream } from "@/lib/audit/use-audit-stream";
 import { sampleSyllabusFile, SAMPLE_SYLLABUS_NAME } from "@/lib/syllabus/sample";
 import { MARKETS, MARKET_LABELS, type MarketId } from "@/data/job-market";
 import { cn } from "@/lib/utils";
 
 export function AuditWorkspace() {
-  const { stages, stageOrder, result, error, runState, elapsed, run, reset } = useAuditStream();
+  const {
+    stages,
+    stageOrder,
+    result,
+    patch,
+    error,
+    patchError,
+    runState,
+    patchState,
+    elapsed,
+    run,
+    runPatch,
+    reset,
+  } = useAuditStream();
   const [market, setMarket] = useState<MarketId>("bengaluru");
   const [dragging, setDragging] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
@@ -196,6 +210,55 @@ export function AuditWorkspace() {
                   <GapReportView report={result.gap} />
                 </section>
               )}
+
+              {result.gap && !patch && (
+                <div className="flex flex-col items-start gap-2">
+                  <Button
+                    type="button"
+                    onClick={() => runPatch(result.structure, result.gap!)}
+                    disabled={patchState === "running"}
+                    className="px-6 py-3"
+                  >
+                    {patchState === "running" ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin" />
+                        Drafting amendment
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="size-4" />
+                        Generate BoS fast-track amendment
+                      </>
+                    )}
+                  </Button>
+                  <p className="text-[11px] text-faint">
+                    Sized to {result.gap.modifiableHours ?? "—"} h — 15% of{" "}
+                    {result.gap.totalHours ?? "—"} h. The budget and Bloom&apos;s levels are
+                    re-checked in code after generation.
+                  </p>
+                </div>
+              )}
+
+              {patchError && (
+                <div className="rounded-lg border border-bad/30 bg-bad/[0.06] p-5">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="mt-0.5 size-4 shrink-0 text-bad" />
+                    <div>
+                      <h3 className="text-sm font-medium text-ink">
+                        The amendment could not be generated
+                      </h3>
+                      <p className="mt-1.5 text-sm leading-relaxed text-muted">{patchError}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {patch && (
+                <section className="panel lift rounded-lg p-7">
+                  <PatchView patch={patch} />
+                </section>
+              )}
+
               <section className="panel lift rounded-lg p-7">
                 <StructureReport result={result} />
               </section>
