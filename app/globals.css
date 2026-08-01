@@ -170,6 +170,46 @@
   }
 }
 
+/* --------------------------------------------------------------------------
+   Print. The proposal is the deliverable, so printing the workspace should
+   yield the document alone — no navigation, no telemetry, no controls.
+   -------------------------------------------------------------------------- */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: #fff;
+  }
+
+  .proposal {
+    max-width: none !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+  }
+
+  @page {
+    margin: 16mm;
+  }
+
+  /* A heading stranded at the foot of a page reads as an error in a document
+     that will be tabled at a committee. */
+  h1,
+  h2,
+  h3 {
+    break-after: avoid;
+  }
+
+  tr,
+  section {
+    break-inside: avoid;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

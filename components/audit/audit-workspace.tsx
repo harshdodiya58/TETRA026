@@ -1,13 +1,24 @@
 "use client";
 
-import { useRef, useState, type DragEvent } from "react";
+import { useMemo, useRef, useState, type DragEvent } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { AlertTriangle, FileUp, Loader2, RotateCcw, Sparkles } from "lucide-react";
+import {
+  AlertTriangle,
+  FileDown,
+  FileText,
+  FileUp,
+  Loader2,
+  Printer,
+  RotateCcw,
+  Sparkles,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TelemetryHud } from "@/components/audit/telemetry-hud";
 import { StructureReport } from "@/components/audit/structure-report";
 import { GapReportView } from "@/components/audit/gap-report";
 import { PatchView } from "@/components/audit/patch-view";
+import { ProposalDocument } from "@/components/audit/proposal-document";
+import { buildProposal, proposalFilename } from "@/lib/export/proposal";
 import { useAuditStream } from "@/lib/audit/use-audit-stream";
 import { sampleSyllabusFile, SAMPLE_SYLLABUS_NAME } from "@/lib/syllabus/sample";
 import { MARKETS, MARKET_LABELS, type MarketId } from "@/data/job-market";
@@ -31,9 +42,63 @@ export function AuditWorkspace() {
   const [market, setMarket] = useState<MarketId>("bengaluru");
   const [dragging, setDragging] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
+  // Stamped once when the proposal is opened so the previewed document, the
+  // printed page, and the filename all carry the same date.
+  const [proposalAt, setProposalAt] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const busy = runState === "running";
+
+  const proposalBlocks = useMemo(() => {
+    if (!result?.gap || !patch || !proposalAt) return null;
+    return buildProposal({
+      structure: result.structure,
+      gap: result.gap,
+      patch,
+      generatedAt: proposalAt,
+    });
+  }, [result, patch, proposalAt]);
+
+  async function downloadDocx() {
+    if (!result?.gap || !patch) return;
+    setExporting(true);
+    setExportError(null);
+
+    try {
+      const response = await fetch("/api/export/docx", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ structure: result.structure, gap: result.gap, patch }),
+      });
+
+      if (!response.ok) {
+        const detail = await response.json().catch(() => null);
+        throw new Error(detail?.error ?? `Export failed (${response.status}).`);
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = proposalFilename(
+        {
+          structure: result.structure,
+          gap: result.gap,
+          patch,
+          generatedAt: proposalAt ?? new Date().toISOString(),
+        },
+        "docx",
+      );
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "The export failed.");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   function start(file: File) {
     setFileName(file.name);
@@ -48,7 +113,8 @@ export function AuditWorkspace() {
   }
 
   return (
-    <div className="grid gap-10 lg:grid-cols-[22rem_1fr] lg:items-start">
+    <>
+    <div className="no-print grid gap-10 lg:grid-cols-[22rem_1fr] lg:items-start">
       {/* Configuration */}
       <aside className="space-y-6">
         <section className="panel rounded-lg p-6">
@@ -259,6 +325,17 @@ export function AuditWorkspace() {
                 </section>
               )}
 
+              {patch && !proposalBlocks && (
+                <Button
+                  type="button"
+                  onClick={() => setProposalAt(new Date().toISOString())}
+                  className="px-6 py-3"
+                >
+                  <FileText className="size-4" />
+                  Prepare Board of Studies proposal
+                </Button>
+              )}
+
               <section className="panel lift rounded-lg p-7">
                 <StructureReport result={result} />
               </section>
@@ -281,5 +358,50 @@ export function AuditWorkspace() {
         </AnimatePresence>
       </div>
     </div>
+
+    {/* The proposal sits outside the no-print grid: printing this page should
+        yield the document alone, without the workspace around it. */}
+    {proposalBlocks && (
+      <section className="mt-12">
+        <div className="no-print mb-5 flex flex-wrap items-center gap-2.5">
+          <Button type="button" onClick={downloadDocx} disabled={exporting} className="px-5 py-2.5">
+            {exporting ? (
+              <>
+                <Loader2 className="size-4 animate-spin" />
+                Preparing
+              </>
+            ) : (
+              <>
+                <FileDown className="size-4" />
+                Download Word (.docx)
+              </>
+            )}
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => window.print()}
+            className="px-5 py-2.5"
+          >
+            <Printer className="size-4" />
+            Print / Save as PDF
+          </Button>
+
+          <p className="text-[11px] text-faint">
+            Word is the primary format — a Board edits the document before tabling it.
+          </p>
+        </div>
+
+        {exportError && (
+          <p className="no-print mb-4 rounded-md border border-bad/30 bg-bad/[0.07] px-3.5 py-2.5 text-xs text-bad">
+            {exportError}
+          </p>
+        )}
+
+        <ProposalDocument blocks={proposalBlocks} />
+      </section>
+    )}
+    </>
   );
 }

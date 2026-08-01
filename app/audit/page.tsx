@@ -26,7 +26,7 @@ export default async function AuditPage() {
   return (
     <main className="flex-1">
       <div className="mx-auto max-w-6xl px-6 py-8">
-        <header className="flex items-center justify-between border-b border-[#d6d0c4] pb-5">
+        <header className="no-print flex items-center justify-between border-b border-[#d6d0c4] pb-5">
           <Link href="/dashboard">
             <Wordmark />
           </Link>
@@ -36,7 +36,7 @@ export default async function AuditPage() {
           </div>
         </header>
 
-        <div className="mt-10 max-w-2xl">
+        <div className="no-print mt-10 max-w-2xl">
           <p className="small-caps text-xs text-accent">New audit</p>
           <h1 className="mt-3 text-4xl leading-tight">Read a syllabus</h1>
           <p className="mt-5 font-serif text-lg leading-[1.7] text-muted">
