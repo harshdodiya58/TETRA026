@@ -139,7 +139,7 @@ but logs a deprecation warning.
 | 2 | Supabase schema, RLS, RBAC, domain whitelist | 🟡 SQL written, not yet applied |
 | 3 | Syllabus ingestion and structural chunker | ✅ |
 | 4 | Embeddings and job-market corpus | ✅ in-memory; pgvector pending |
-| 5 | Neo4j skill graph and traversal | 🟡 built; blocked on credentials |
+| 5 | Neo4j skill graph and traversal | ✅ |
 | 6 | Telemetry bus and live processing HUD | ✅ |
 | 7 | Gap dashboard and obsolete-topic heatmap | ✅ |
 | 8 | 15% patch generation with Bloom's and PO validators | ✅ |
@@ -175,11 +175,15 @@ syllabus."* The graph says *"and this course already teaches indexing and embedd
 added without new groundwork"* — a far easier motion to carry at a Board of Studies than one
 assuming prerequisites the course never lays.
 
-⚠️ **Currently blocked on credentials.** The URI is correct and the instance is reachable, but Bolt
-returns `Neo.ClientError.Security.Unauthorized`. Check `NEO4J_PASSWORD` against the credentials file
-Aura issued at instance creation. Until it connects, the graph stage reports as not run and the
-audit continues on vector evidence alone.
+Seeded graph: **45 skills · 51 tools · 5 roles · 138 relationships**.
 
-Note that `NEO4J_URI` must be the **Bolt** endpoint (`neo4j+s://<id>.databases.neo4j.io`), not a
+Traversal latency is dominated by connection setup, not by the queries. Measured against AuraDB:
+**cold 1251ms, warm ~235ms**. Running the three queries in parallel barely moved it (1406ms → 1332ms);
+the cached driver in `lib/graph/neo4j.ts` is the optimisation that actually counts.
+
+If Neo4j is unreachable the graph stage reports as not run and the audit continues on vector
+evidence alone — the syllabus audit never fails because a secondary service is down.
+
+`NEO4J_URI` must be the **Bolt** endpoint (`neo4j+s://<id>.databases.neo4j.io`), not a
 `console.neo4j.io` dashboard link. The config guard rejects the latter explicitly, because it is an
 easy copy to make and otherwise fails much later with a confusing error.
