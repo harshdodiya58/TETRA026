@@ -1,5 +1,3 @@
-import mammoth from "mammoth";
-
 export type SourceKind = "pdf" | "docx" | "text";
 
 export type ParsedDocument = {
@@ -68,6 +66,9 @@ async function parsePdf(buffer: ArrayBuffer): Promise<ParsedDocument> {
 }
 
 async function parseDocx(buffer: ArrayBuffer): Promise<ParsedDocument> {
+  // Lazy, like unpdf: neither parser should be loaded into a cold serverless
+  // invocation that only has to read a text file.
+  const mammoth = (await import("mammoth")).default;
   const { value } = await mammoth.extractRawText({ buffer: Buffer.from(buffer) });
 
   if (value.trim().length === 0) {

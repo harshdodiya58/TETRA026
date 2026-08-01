@@ -13,7 +13,14 @@ import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/env";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+
+/**
+ * A full audit measures ~2s. 30s leaves generous headroom for a cold start plus
+ * a slow embedding call, while staying inside the ceiling on Vercel's free
+ * plan — a function killed at its limit cannot respond at all, so the budget is
+ * set below the platform limit rather than at it.
+ */
+export const maxDuration = 30;
 
 /** nv-embedqa-e5-v5 accepts ~512 tokens; truncate rather than let it 400. */
 const MAX_EMBED_CHARS = 1800;

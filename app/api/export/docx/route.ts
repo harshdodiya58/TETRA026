@@ -5,6 +5,9 @@ import { isSupabaseConfigured } from "@/lib/env";
 
 export const runtime = "nodejs";
 
+/** Pure rendering, no network calls — this is generous already. */
+export const maxDuration = 15;
+
 /** Returns the Board of Studies proposal as an editable .docx. */
 export async function POST(request: Request) {
   if (isSupabaseConfigured) {

@@ -8,6 +8,14 @@ import type { GapReport } from "@/lib/gap/score";
 import type { SyllabusStructure } from "@/lib/syllabus/chunk";
 
 export const runtime = "nodejs";
+
+/**
+ * generatePatch works to a 42s internal budget and stops while there is still
+ * time to serialise a reply, so this ceiling is never actually reached. If your
+ * Vercel plan caps functions below 60s, lower DEFAULT_BUDGET_MS in
+ * lib/patch/generate.ts to match — the internal budget must stay under the
+ * platform limit, not the other way round.
+ */
 export const maxDuration = 60;
 
 /**

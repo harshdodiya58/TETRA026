@@ -22,8 +22,16 @@ const NIM_FALLBACK = process.env.NVIDIA_NIM_CHAT_MODEL_FALLBACK ?? "meta/llama-3
 const GEMINI_KEY = process.env.GEMINI_API_KEY ?? "";
 const GEMINI_MODEL = process.env.GEMINI_CHAT_MODEL ?? "gemini-3.5-flash-lite";
 
-/** A single generation attempt times out well before the route's 60s ceiling. */
-const ATTEMPT_TIMEOUT_MS = 22_000;
+/**
+ * Default ceiling for one attempt. Callers working against a wall-clock
+ * deadline should pass their own, smaller value — see generatePatch, which
+ * divides its remaining budget across retries so the worst case still fits
+ * inside the platform's function timeout.
+ */
+const ATTEMPT_TIMEOUT_MS = 20_000;
+
+/** Below this there is not enough time for a useful completion. */
+export const MIN_ATTEMPT_MS = 6_000;
 
 export type Provider = { id: string; label: string };
 
@@ -66,6 +74,7 @@ export async function generate(
   system: string,
   user: string,
   maxTokens = 2200,
+  timeoutMs = ATTEMPT_TIMEOUT_MS,
 ): Promise<GenerationResult> {
   const chain = generationChain();
   if (chain.length === 0) {
@@ -73,6 +82,9 @@ export async function generate(
   }
 
   const attempts: { model: string; error: string }[] = [];
+  // Every provider in the chain shares the budget; otherwise a three-provider
+  // failover could take three times longer than the caller allowed for.
+  const perProvider = Math.max(Math.floor(timeoutMs / chain.length), MIN_ATTEMPT_MS);
 
   for (const provider of chain) {
     const started = performance.now();
@@ -81,8 +93,8 @@ export async function generate(
 
       const result =
         kind === "nim"
-          ? await nimGenerate(model, system, user, maxTokens)
-          : await geminiGenerate(model, system, user, maxTokens);
+          ? await nimGenerate(model, system, user, maxTokens, perProvider)
+          : await geminiGenerate(model, system, user, maxTokens, perProvider);
 
       if (result.text.trim().length === 0) {
         throw new Error("Provider returned an empty completion.");
@@ -119,9 +131,10 @@ async function nimGenerate(
   system: string,
   user: string,
   maxTokens: number,
+  timeoutMs: number,
 ): Promise<{ text: string; ttftMs: number | null }> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), ATTEMPT_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   const started = performance.now();
   let ttftMs: number | null = null;
 
@@ -188,9 +201,10 @@ async function geminiGenerate(
   system: string,
   user: string,
   maxTokens: number,
+  timeoutMs: number,
 ): Promise<{ text: string; ttftMs: number | null }> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), ATTEMPT_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const response = await fetch(

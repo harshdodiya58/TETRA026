@@ -1,4 +1,4 @@
-import { generate, extractJson, GenerationError } from "@/lib/ai/generate";
+import { generate, extractJson, GenerationError, MIN_ATTEMPT_MS } from "@/lib/ai/generate";
 import {
   validateOutcome,
   verbsAtOrAbove,
@@ -25,6 +25,20 @@ import { MARKET_LABELS } from "@/data/job-market";
  */
 
 const MAX_ATTEMPTS = 3;
+
+/**
+ * Wall-clock budget for the whole generate-validate-retry cycle.
+ *
+ * This must stay comfortably under the route's maxDuration. Vercel kills a
+ * function at its limit with no chance to respond, so three retries at a fixed
+ * per-attempt timeout is a latent bug: 3 × 20s exceeds a 60s ceiling and the
+ * user sees an opaque failure instead of a diagnosed one. Attempts draw from
+ * this shared budget and the loop stops while there is still time to reply.
+ */
+const DEFAULT_BUDGET_MS = 42_000;
+
+/** Reserved so a result can always be serialised and streamed back. */
+const RESPONSE_RESERVE_MS = 2_000;
 
 export type PatchAddition = {
   kind: AdditionKind;
@@ -85,7 +99,9 @@ export async function generatePatch(
   structure: SyllabusStructure,
   gap: GapReport,
   onCorrection?: (message: string) => void,
+  budgetMs: number = DEFAULT_BUDGET_MS,
 ): Promise<SyllabusPatch> {
+  const startedAt = performance.now();
   const totalHours = gap.totalHours;
   if (totalHours === null || totalHours <= 0) {
     throw new PatchError(
@@ -99,10 +115,33 @@ export async function generatePatch(
   let feedback = "";
   let lastError = "";
 
+  let lastDraft: { patch: SyllabusPatch; attempt: number } | null = null;
+
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    const remaining = budgetMs - (performance.now() - startedAt) - RESPONSE_RESERVE_MS;
+
+    if (remaining < MIN_ATTEMPT_MS) {
+      // Out of time. Return the best draft so far, honestly labelled, rather
+      // than letting the platform kill the function mid-attempt.
+      if (lastDraft) {
+        corrections.push(
+          `Stopped after ${lastDraft.attempt} draft${lastDraft.attempt === 1 ? "" : "s"}: time budget exhausted before validation passed.`,
+        );
+        return { ...lastDraft.patch, corrections };
+      }
+      throw new PatchError(
+        `Patch generation ran out of time after ${Math.round((performance.now() - startedAt) / 1000)}s without a usable draft. ${lastError}`.trim(),
+      );
+    }
+
     let result;
     try {
-      result = await generate(SYSTEM_PROMPT, buildPrompt(structure, gap, budget, feedback));
+      result = await generate(
+        SYSTEM_PROMPT,
+        buildPrompt(structure, gap, budget, feedback),
+        2200,
+        Math.floor(remaining),
+      );
     } catch (error) {
       if (error instanceof GenerationError) {
         throw new PatchError(
@@ -189,10 +228,11 @@ export async function generatePatch(
     feedback = `Your previous draft was rejected by automated validation:\n${notes.map((n) => `- ${n}`).join("\n")}\nReturn a corrected JSON object.`;
     lastError = notes.join(" ");
 
-    // Last attempt exhausted: report honestly rather than shipping an invalid
-    // patch marked valid.
-    if (attempt === MAX_ATTEMPTS) {
-      return {
+    // Keep the rejected draft: if attempts or time run out, returning it
+    // clearly marked as failing validation beats returning nothing.
+    lastDraft = {
+      attempt,
+      patch: {
         additions: draft.additions,
         modernisations: draft.modernisations,
         outcomes,
@@ -207,7 +247,13 @@ export async function generatePatch(
         ttftMs: result.ttftMs,
         totalMs: result.totalMs,
         corrections,
-      };
+      },
+    };
+
+    // Attempts exhausted: report honestly rather than shipping an invalid
+    // patch marked valid.
+    if (attempt === MAX_ATTEMPTS) {
+      return { ...lastDraft.patch, corrections };
     }
   }
 

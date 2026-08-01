@@ -31,9 +31,10 @@ to landing in spam.
 For a live demo this is the single most likely thing to break: request two sign-in links in quick
 succession and the second silently never arrives.
 
-Configure custom SMTP under **Project Settings → Authentication → SMTP Settings**. Resend, Brevo, and
-Mailgun all have free tiers sufficient for this. Then raise the rate limit under
-**Authentication → Rate Limits**.
+See **[SMTP.md](SMTP.md)** for free options and exact settings. The short version: without a custom
+domain, use **Brevo** — it verifies a single sender address rather than a domain, so it works with a
+Gmail address today. Switch to Resend once you own a domain, because SPF/DKIM alignment is what keeps
+mail out of spam and it cannot be configured without DNS control.
 
 If you cannot set up SMTP before the demo: **sign in once, well beforehand.** The session persists,
 so no email is needed during the pitch.
