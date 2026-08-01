@@ -3,8 +3,8 @@
 import { motion } from "motion/react";
 
 /**
- * ECG trace that runs flat, then breaks into a spike. Visual shorthand for the
- * product thesis: a syllabus flatlines while industry spikes.
+ * The thesis in one line: a syllabus holds flat in faint ink while the market
+ * it feeds spikes in red pen.
  */
 export function PulseTrace() {
   return (
@@ -15,24 +15,27 @@ export function PulseTrace() {
       className="h-24 w-full"
       aria-hidden
     >
-      <defs>
-        <linearGradient id="trace" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor="#2dd4bf" stopOpacity="0" />
-          <stop offset="18%" stopColor="#2dd4bf" stopOpacity="0.75" />
-          <stop offset="62%" stopColor="#6366f1" />
-          <stop offset="100%" stopColor="#a855f7" stopOpacity="0.15" />
-        </linearGradient>
-      </defs>
-
+      {/* Flatline — the frozen document. */}
       <motion.path
-        d="M0 60 H430 l26 0 l18 -34 l22 68 l20 -52 l18 34 l16 -16 h34 l22 -44 l26 88 l20 -60 l18 26 h64 l24 -30 l28 62 l22 -40 h330"
-        stroke="url(#trace)"
-        strokeWidth="2"
+        d="M0 60 H430"
+        stroke="#16150f"
+        strokeOpacity="0.28"
+        strokeWidth="1.25"
+        initial={{ pathLength: 0 }}
+        animate={{ pathLength: 1 }}
+        transition={{ duration: 1.1, ease: "easeOut", delay: 0.4 }}
+      />
+
+      {/* The market, marked in red. */}
+      <motion.path
+        d="M430 60 l26 0 l18 -34 l22 68 l20 -52 l18 34 l16 -16 h34 l22 -44 l26 88 l20 -60 l18 26 h64 l24 -30 l28 62 l22 -40 h330"
+        stroke="#8c2f26"
+        strokeWidth="1.75"
         strokeLinecap="round"
         strokeLinejoin="round"
         initial={{ pathLength: 0, opacity: 0 }}
         animate={{ pathLength: 1, opacity: 1 }}
-        transition={{ duration: 2.6, ease: "easeInOut", delay: 0.5 }}
+        transition={{ duration: 2.2, ease: "easeInOut", delay: 1.3 }}
       />
     </svg>
   );

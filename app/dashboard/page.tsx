@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Wordmark } from "@/components/brand/logo";
 import { SignOutButton } from "@/components/auth/sign-out-button";
-import { Aurora } from "@/components/ui/aurora";
+import { PaperField } from "@/components/ui/paper-field";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/env";
 
@@ -19,11 +19,11 @@ export const dynamic = "force-dynamic";
 
 /** Milestone tiles — each becomes a real surface as the engine lands. */
 const UPCOMING = [
-  { title: "Audit sessions", body: "Course, degree, target hiring market, and the 15% cap." },
+  { title: "Audit sessions", body: "Course, degree, target hiring market, and the fifteen per cent cap." },
   { title: "Syllabus ingestion", body: "PDF and DOCX parsing into units, hours, and Course Outcomes." },
-  { title: "Live telemetry HUD", body: "Measured parsing, embedding, vector, and graph metrics." },
+  { title: "Live telemetry", body: "Measured parsing, embedding, vector, and graph metrics." },
   { title: "Gap dashboard", body: "Alignment score, obsolete-topic heatmap, missing skills." },
-  { title: "15% patch generation", body: "Bloom's-validated COs inside a computed hour budget." },
+  { title: "Patch generation", body: "Bloom's-validated COs inside a computed hour budget." },
   { title: "BoS proposal export", body: "Formatted revision proposal as PDF or DOCX." },
 ];
 
@@ -41,10 +41,10 @@ export default async function DashboardPage() {
 
   return (
     <main className="relative isolate flex-1 overflow-hidden">
-      <Aurora className="opacity-40" />
+      <PaperField />
 
-      <div className="relative mx-auto max-w-6xl px-6 py-10">
-        <header className="flex items-center justify-between">
+      <div className="relative mx-auto max-w-6xl px-6 py-8">
+        <header className="flex items-center justify-between border-b border-[#d6d0c4] pb-5">
           <Link href="/">
             <Wordmark />
           </Link>
@@ -54,29 +54,27 @@ export default async function DashboardPage() {
           </div>
         </header>
 
-        <div className="mt-16 max-w-2xl">
-          <p className="text-[11px] uppercase tracking-[0.2em] text-pulse">Signed in</p>
-          <h1 className="mt-4 text-4xl font-semibold sm:text-5xl">Your audit workspace</h1>
-          <p className="mt-5 text-lg leading-relaxed text-muted">
+        <div className="mt-14 max-w-2xl">
+          <p className="small-caps text-xs text-accent">Signed in</p>
+          <h1 className="mt-4 text-4xl leading-tight sm:text-5xl">Your audit workspace</h1>
+          <p className="mt-6 font-serif text-lg leading-[1.7] text-muted">
             The authentication shell is live. The audit engine lands milestone by milestone — each
-            tile below becomes a working surface as it ships.
+            entry below becomes a working surface as it ships.
           </p>
         </div>
 
-        <div className="mt-14 grid gap-px overflow-hidden rounded-3xl border border-white/[0.07] bg-white/[0.07] sm:grid-cols-2 lg:grid-cols-3">
+        <ol className="mt-12 grid gap-x-12 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
           {UPCOMING.map((item, i) => (
-            <div key={item.title} className="bg-base p-7">
-              <span className="font-mono text-xs text-faint">
-                M{i + 1}
-              </span>
-              <h2 className="mt-3 text-base font-semibold text-ink">{item.title}</h2>
-              <p className="mt-2 text-sm leading-relaxed text-muted">{item.body}</p>
-              <span className="mt-4 inline-block rounded-full border border-white/10 px-2.5 py-0.5 text-[11px] text-faint">
+            <li key={item.title} className="border-t border-[#d6d0c4] pt-4">
+              <span className="font-mono text-[11px] text-faint">M{i + 1}</span>
+              <h2 className="mt-2 text-lg text-ink">{item.title}</h2>
+              <p className="mt-1.5 text-sm leading-relaxed text-muted">{item.body}</p>
+              <span className="small-caps mt-3 inline-block text-[10px] text-accent">
                 In progress
               </span>
-            </div>
+            </li>
           ))}
-        </div>
+        </ol>
       </div>
     </main>
   );

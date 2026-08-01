@@ -2,9 +2,9 @@ import { Reveal } from "@/components/ui/reveal";
 
 const BLOOM = [
   { level: "L1–L2", name: "Remember · Understand", use: "Introductory lecture topics only", tone: "text-faint" },
-  { level: "L3", name: "Apply", use: "New hands-on lab experiments", tone: "text-pulse" },
-  { level: "L4", name: "Analyze", use: "Industry case studies", tone: "text-flux" },
-  { level: "L5", name: "Evaluate · Create", use: "Capstone micro-project prompts", tone: "text-nova" },
+  { level: "L3", name: "Apply", use: "New hands-on lab experiments", tone: "text-ink" },
+  { level: "L4", name: "Analyze", use: "Industry case studies", tone: "text-ink" },
+  { level: "L5", name: "Evaluate · Create", use: "Capstone micro-project prompts", tone: "text-accent" },
 ];
 
 const PO_MAP = [
@@ -15,89 +15,82 @@ const PO_MAP = [
 
 export function Compliance() {
   return (
-    <section id="compliance" className="relative border-t border-white/5 py-28">
+    <section id="compliance" className="relative border-t border-[#d6d0c4] py-24">
       <div className="mx-auto max-w-6xl px-6">
         <Reveal>
-          <p className="text-[11px] uppercase tracking-[0.2em] text-pulse">Accreditation</p>
-          <h2 className="mt-4 max-w-3xl text-4xl font-semibold sm:text-5xl">
+          <p className="small-caps text-xs text-accent">Accreditation</p>
+          <h2 className="mt-4 max-w-3xl text-4xl leading-tight sm:text-5xl">
             Written the way your Board already reads.
           </h2>
-          <p className="mt-5 max-w-2xl text-lg leading-relaxed text-muted">
-            A Dean will not sign a proposal that a language model asserted was compliant. So the
-            parts an accreditation body audits are computed and verified in code — the model
-            proposes, deterministic rules dispose.
+          <p className="mt-6 max-w-2xl font-serif text-lg leading-[1.7] text-muted">
+            A Dean will not sign a proposal whose compliance was merely asserted by a language
+            model. So the parts an accreditation body audits are computed and verified in code — the
+            model proposes, deterministic rules dispose.
           </p>
         </Reveal>
 
-        <div className="mt-16 grid gap-6 lg:grid-cols-3">
-          {/* CO formulator */}
+        <div className="mt-14 grid gap-6 lg:grid-cols-3">
           <Reveal>
-            <div className="panel h-full rounded-2xl p-7">
-              <h3 className="text-lg font-semibold text-ink">Course Outcome formulator</h3>
-              <p className="mt-2.5 text-sm leading-relaxed text-muted">
+            <article className="panel lift h-full rounded-lg p-7">
+              <h3 className="text-xl text-ink">Course Outcome formulator</h3>
+              <p className="mt-3 text-sm leading-relaxed text-muted">
                 Every generated addition carries a CO statement in the standard OBE construction.
               </p>
-              <div className="rule mt-6 rounded-xl bg-base/60 p-4 font-mono text-[12px] leading-relaxed">
-                <p className="text-faint">
-                  At the end of this module, the student will be able to{" "}
-                  <span className="text-pulse">[action verb]</span>{" "}
-                  <span className="text-flux">[tool / concept]</span> to{" "}
-                  <span className="text-nova">[engineering application]</span>.
-                </p>
-              </div>
-              <div className="mt-5 flex flex-wrap gap-2">
+              <blockquote className="mt-6 border-l-2 border-accent/40 bg-surface py-3 pl-4 pr-3 font-serif text-[13.5px] leading-relaxed text-ink">
+                At the end of this module, the student will be able to{" "}
+                <span className="text-accent">[action verb]</span>{" "}
+                <span className="text-accent">[tool / concept]</span> to{" "}
+                <span className="text-accent">[engineering application]</span>.
+              </blockquote>
+              <ul className="mt-5 space-y-1.5">
                 {PO_MAP.map((po) => (
-                  <span
-                    key={po.code}
-                    className="rule rounded-full bg-white/[0.03] px-2.5 py-1 text-[11px] text-muted"
-                  >
-                    <span className="font-mono text-pulse">{po.code}</span> · {po.label}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </Reveal>
-
-          {/* Bloom's */}
-          <Reveal delay={0.08}>
-            <div className="panel h-full rounded-2xl p-7">
-              <h3 className="text-lg font-semibold text-ink">Bloom&apos;s level enforcement</h3>
-              <p className="mt-2.5 text-sm leading-relaxed text-muted">
-                A verb lexicon validates every generated outcome. A lab CO opening with
-                &ldquo;Understand&rdquo; fails the check and regenerates.
-              </p>
-              <ul className="mt-6 space-y-3">
-                {BLOOM.map((b) => (
-                  <li key={b.level} className="flex items-start gap-3 text-sm">
-                    <span className={`font-mono text-xs ${b.tone} w-12 shrink-0 pt-0.5`}>
-                      {b.level}
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block text-ink">{b.name}</span>
-                      <span className="block text-xs text-faint">{b.use}</span>
-                    </span>
+                  <li key={po.code} className="flex items-baseline gap-2.5 text-[13px] text-muted">
+                    <span className="font-mono text-[11px] text-accent">{po.code}</span>
+                    {po.label}
                   </li>
                 ))}
               </ul>
-            </div>
+            </article>
           </Reveal>
 
-          {/* 15% cap */}
-          <Reveal delay={0.16}>
-            <div className="panel h-full rounded-2xl p-7">
-              <h3 className="text-lg font-semibold text-ink">The 15% fast-track boundary</h3>
-              <p className="mt-2.5 text-sm leading-relaxed text-muted">
+          <Reveal delay={0.07}>
+            <article className="panel lift h-full rounded-lg p-7">
+              <h3 className="text-xl text-ink">Bloom&apos;s level enforcement</h3>
+              <p className="mt-3 text-sm leading-relaxed text-muted">
+                A verb lexicon validates every generated outcome. A lab CO opening with
+                &ldquo;Understand&rdquo; fails the check and regenerates.
+              </p>
+              <dl className="mt-6 divide-y divide-[#e2ddd2]">
+                {BLOOM.map((b) => (
+                  <div key={b.level} className="flex items-start gap-4 py-2.5">
+                    <dt className={`w-12 shrink-0 font-mono text-[11px] ${b.tone} pt-0.5`}>
+                      {b.level}
+                    </dt>
+                    <dd className="min-w-0">
+                      <span className="block text-sm text-ink">{b.name}</span>
+                      <span className="block text-[12px] text-faint">{b.use}</span>
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </article>
+          </Reveal>
+
+          <Reveal delay={0.14}>
+            <article className="panel lift h-full rounded-lg p-7">
+              <h3 className="text-xl text-ink">The fifteen per cent boundary</h3>
+              <p className="mt-3 text-sm leading-relaxed text-muted">
                 Contact hours are converted to a hard modification budget in code, handed to the
                 model as a constraint, then re-measured against the returned patch.
               </p>
 
               <div className="mt-6 space-y-2">
-                <div className="flex items-baseline justify-between font-mono text-xs">
+                <div className="flex items-baseline justify-between font-mono text-[11px]">
                   <span className="text-faint">45 h course</span>
                   <span className="text-good">6.75 h modifiable</span>
                 </div>
-                <div className="h-2.5 w-full overflow-hidden rounded-full bg-white/[0.06]">
-                  <div className="h-full w-[15%] rounded-full bg-gradient-to-r from-pulse to-flux" />
+                <div className="h-2 w-full overflow-hidden rounded-sm bg-[#ded8cc]">
+                  <div className="h-full w-[15%] bg-accent" />
                 </div>
                 <p className="pt-1 text-[11px] text-faint">
                   Over budget → rejected and regenerated, never rounded down quietly.
@@ -110,13 +103,13 @@ export function Compliance() {
                   "Credit weightage unchanged",
                   "Core theoretical foundation intact",
                 ].map((item) => (
-                  <li key={item} className="flex items-center gap-2.5">
-                    <span className="size-1.5 rounded-full bg-good" />
+                  <li key={item} className="flex items-baseline gap-2.5">
+                    <span className="text-good">✓</span>
                     {item}
                   </li>
                 ))}
               </ul>
-            </div>
+            </article>
           </Reveal>
         </div>
       </div>

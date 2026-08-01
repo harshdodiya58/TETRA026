@@ -23,12 +23,12 @@ const COLUMNS = [
 
 export function Footer() {
   return (
-    <footer className="border-t border-white/5 py-14">
+    <footer className="border-t border-[#d6d0c4] bg-surface py-14">
       <div className="mx-auto max-w-6xl px-6">
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
           <div className="lg:col-span-2">
             <Wordmark />
-            <p className="mt-4 max-w-xs text-sm leading-relaxed text-faint">
+            <p className="mt-4 max-w-xs text-sm leading-relaxed text-muted">
               Syllabus audit and micro-augmentation for Indian higher education. Built for the
               regulation that actually governs curriculum change.
             </p>
@@ -36,13 +36,13 @@ export function Footer() {
 
           {COLUMNS.map((col) => (
             <div key={col.heading}>
-              <h3 className="text-xs uppercase tracking-[0.16em] text-muted">{col.heading}</h3>
+              <h3 className="small-caps text-[11px] text-ink">{col.heading}</h3>
               <ul className="mt-4 space-y-2.5">
                 {col.links.map((link) => (
                   <li key={link.label}>
                     <a
                       href={link.href}
-                      className="text-sm text-faint transition-colors hover:text-ink"
+                      className="text-sm text-muted underline-offset-4 transition-colors hover:text-ink hover:underline"
                     >
                       {link.label}
                     </a>
@@ -53,7 +53,7 @@ export function Footer() {
           ))}
         </div>
 
-        <div className="mt-12 flex flex-col items-start justify-between gap-3 border-t border-white/5 pt-6 sm:flex-row sm:items-center">
+        <div className="mt-12 flex flex-col items-start justify-between gap-3 border-t border-[#d6d0c4] pt-6 sm:flex-row sm:items-center">
           <p className="text-xs text-faint">CurriPulse AI — academic audit engine.</p>
           <p className="font-mono text-[11px] text-faint">TETRA026</p>
         </div>

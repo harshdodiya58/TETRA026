@@ -23,8 +23,8 @@ export function SignOutButton({ className }: { className?: string }) {
       onClick={signOut}
       disabled={busy}
       className={cn(
-        "inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-sm text-muted",
-        "transition-colors hover:bg-white/5 hover:text-ink disabled:opacity-50",
+        "inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm text-muted",
+        "transition-colors hover:bg-surface hover:text-ink disabled:opacity-50",
         className,
       )}
     >

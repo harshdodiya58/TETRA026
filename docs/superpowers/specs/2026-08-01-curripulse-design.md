@@ -35,7 +35,23 @@ CurriPulse AI audits an existing syllabus against real Indian tech job-market de
 | Embeddings | Single pinned model (see §3.3) |
 | Job data | Kaggle Indian tech job CSVs, seeded offline; optional Adzuna/JSearch top-up |
 
-### 3.2 Telemetry: measured, not simulated
+### 3.2 Design language: archival press
+
+A syllabus is a printed document, and this tool's output is a document tabled at an Academic
+Council. The interface therefore reads as warm paper and ink rather than as a SaaS dashboard.
+
+- **Substrate** is bone (`#F4F1EA`), never pure white. Headlines are set in a serif (Newsreader);
+  UI labels in a neutral sans; all data in mono.
+- **One accent: oxblood** (`#8C2F26`). It carries emphasis *and* obsolescence, which is coherent
+  rather than ambiguous — it is the red pen on a manuscript.
+- **Colour never decorates.** If something is coloured, it encodes a value: aligned (forest),
+  drifting (ochre), obsolete (oxblood). Multi-stop hue gradients are prohibited outright.
+
+The first implementation used a teal→indigo→violet gradient. It was rejected: a three-stop
+decorative gradient is the visual signature of generated boilerplate, and it undercut the
+credibility the product depends on with Deans and accreditation committees.
+
+### 3.3 Telemetry: measured, not simulated
 
 The platform's central credibility claim is that the processing HUD reflects real computation. The binding rule:
 
@@ -57,7 +73,7 @@ bloom.validate  → pass rate over generated verbs
 
 If a stage produces no measurement, the HUD renders that field as unavailable rather than inventing one.
 
-### 3.3 Embedding dimension is pinned, and fallback is generation-only
+### 3.4 Embedding dimension is pinned, and fallback is generation-only
 
 A pgvector column has one fixed dimension. Cosine distance between vectors of differing dimension is undefined, so **failing over between embedding models mid-corpus is a correctness bug, not a resilience feature.** Gemini `text-embedding-004` is 768-dim; NVIDIA's retrieval models are 1024-dim (`nv-embedqa-e5-v5`) and 2048-dim (`llama-3.2-nv-embedqa-1b-v2`).
 
@@ -69,13 +85,13 @@ Decisions:
 4. If the embedding provider is unreachable, the system degrades to a local deterministic embedder and marks the audit as degraded — it does not silently mix vector spaces.
 5. Exact NIM model IDs are verified against the live catalog at implementation time; the embedding client is dimension-agnostic and config-driven so a swap is a config change.
 
-### 3.4 Job vectors are embedded offline
+### 3.5 Job vectors are embedded offline
 
 A seed script ingests Kaggle CSVs, embeds them once, and writes to Supabase. Request time embeds only the ~5–18 syllabus chunks of the uploaded document.
 
 This is what makes the <15s audit target reachable and keeps usage inside the 1,000 NIM credit allowance. Embedding thousands of job postings per audit would blow both.
 
-### 3.5 Regulatory logic is deterministic code, not LLM output
+### 3.6 Regulatory logic is deterministic code, not LLM output
 
 A Dean will not accept a hallucinated hour count. Anything an accreditation body would audit is computed in TypeScript and used to *constrain* and then *verify* the model:
 
@@ -85,13 +101,13 @@ A Dean will not accept a hallucinated hour count. Anything an accreditation body
 
 The LLM proposes; deterministic code disposes.
 
-### 3.6 Data model (outline)
+### 3.7 Data model (outline)
 
 `institutions` · `profiles` (role, institution_id) · `audit_sessions` · `syllabus_documents` · `syllabus_units` · `syllabus_chunks` (vector) · `job_postings` (vector) · `gap_findings` · `patches` · `exports`
 
 RLS policies scope every row by `institution_id`. Uploaded syllabi are never used to train public models.
 
-### 3.7 Auth
+### 3.8 Auth
 
 Supabase magic link with institutional domain whitelist (e.g. `@university.edu.in`). Next.js middleware guards protected routes and redirects to `/login`. RBAC via `profiles.role`:
 

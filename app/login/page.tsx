@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Wordmark } from "@/components/brand/logo";
-import { Aurora } from "@/components/ui/aurora";
+import { PaperField } from "@/components/ui/paper-field";
 import { LoginForm } from "@/components/auth/login-form";
 import { allowedEmailDomains } from "@/lib/env";
 
@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 export default function LoginPage() {
   return (
     <main className="relative isolate flex flex-1 items-center justify-center overflow-hidden px-6 py-20">
-      <Aurora className="opacity-60" />
+      <PaperField />
 
       <div className="relative w-full max-w-md">
         <Link
@@ -28,16 +28,14 @@ export default function LoginPage() {
 
         <Wordmark />
 
-        <h1 className="mt-7 text-3xl font-semibold">Sign in to your institution</h1>
+        <h1 className="mt-7 text-3xl leading-tight">Sign in to your institution</h1>
         <p className="mt-3 text-sm leading-relaxed text-muted">
           CurriPulse is scoped to accredited institutions. Syllabi you upload stay private to your
           institution and are never used to train public models.
         </p>
 
         <div className="mt-8">
-          <Suspense
-            fallback={<div className="panel h-72 animate-pulse rounded-2xl" aria-hidden />}
-          >
+          <Suspense fallback={<div className="panel h-72 animate-pulse rounded-lg" aria-hidden />}>
             <LoginForm />
           </Suspense>
         </div>

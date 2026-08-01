@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { motion } from "motion/react";
 import { Wordmark } from "@/components/brand/logo";
 import { ButtonLink } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -18,44 +17,41 @@ export function Nav() {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 16);
+    const onScroll = () => setScrolled(window.scrollY > 12);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
   return (
-    <motion.header
-      initial={{ y: -24, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-      className="fixed inset-x-0 top-0 z-50 px-4 pt-4"
+    // A full-width masthead with a hairline rule, the way a publication sets
+    // its header — not a floating pill.
+    <header
+      className={cn(
+        "fixed inset-x-0 top-0 z-50 transition-colors duration-200",
+        scrolled
+          ? "border-b border-[#d6d0c4] bg-base/85 backdrop-blur-md"
+          : "border-b border-transparent",
+      )}
     >
-      <nav
-        className={cn(
-          "mx-auto flex max-w-6xl items-center justify-between rounded-2xl px-4 py-2.5 transition-all duration-300",
-          scrolled
-            ? "panel shadow-[0_8px_40px_-12px_rgba(0,0,0,0.8)]"
-            : "border border-transparent",
-        )}
-      >
+      <nav className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3.5">
         <Link href="/" aria-label="CurriPulse home">
           <Wordmark />
         </Link>
 
-        <div className="hidden items-center gap-1 md:flex">
+        <div className="hidden items-center gap-7 md:flex">
           {LINKS.map((link) => (
             <a
               key={link.href}
               href={link.href}
-              className="rounded-full px-3.5 py-1.5 text-sm text-muted transition-colors hover:bg-white/5 hover:text-ink"
+              className="text-sm text-muted underline-offset-[6px] transition-colors hover:text-ink hover:underline"
             >
               {link.label}
             </a>
           ))}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <ButtonLink href="/login" variant="ghost" className="hidden sm:inline-flex">
             Sign in
           </ButtonLink>
@@ -64,6 +60,6 @@ export function Nav() {
           </ButtonLink>
         </div>
       </nav>
-    </motion.header>
+    </header>
   );
 }

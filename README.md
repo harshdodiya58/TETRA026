@@ -27,6 +27,11 @@ Two principles drive the implementation:
 2. **Regulatory logic is deterministic code, not model output.** The 15% hour budget and Bloom's
    Taxonomy level enforcement are computed and verified in TypeScript. The model proposes; code
    disposes. A Dean will not sign a proposal whose compliance was merely asserted by an LLM.
+3. **Colour encodes information; it never decorates.** The interface is set as warm paper and ink
+   with a single oxblood accent — the red pen on a manuscript. Aligned reads forest, drifting
+   ochre, obsolete oxblood. Multi-stop decorative gradients are prohibited: they are the visual
+   signature of generated boilerplate, and this product's credibility depends on not looking like
+   one.
 
 ## Stack
 
