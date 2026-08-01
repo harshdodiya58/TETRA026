@@ -26,7 +26,7 @@ CurriPulse AI audits an existing syllabus against real Indian tech job-market de
 
 | Layer | Choice |
 |---|---|
-| Framework | Next.js 15 (App Router, Server Actions), TypeScript |
+| Framework | Next.js 16 (App Router, Turbopack, Server Actions), TypeScript |
 | UI | Tailwind v4, Framer Motion, custom primitives |
 | Auth | Supabase Auth (magic link / SSO) |
 | Relational + Vector | Supabase Postgres + pgvector |
