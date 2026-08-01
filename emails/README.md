@@ -31,13 +31,16 @@ to landing in spam.
 For a live demo this is the single most likely thing to break: request two sign-in links in quick
 succession and the second silently never arrives.
 
-See **[SMTP.md](SMTP.md)** for free options and exact settings. The short version: without a custom
-domain, use **Brevo** — it verifies a single sender address rather than a domain, so it works with a
-Gmail address today. Switch to Resend once you own a domain, because SPF/DKIM alignment is what keeps
-mail out of spam and it cannot be configured without DNS control.
+See **[SMTP.md](SMTP.md)** for exact settings. Current setup is **Resend** sending from
+`onboarding@resend.dev`.
 
-If you cannot set up SMTP before the demo: **sign in once, well beforehand.** The session persists,
-so no email is needed during the pitch.
+⚠️ That shared sender **only delivers to the address that owns the Resend account.** Mail to anyone
+else is accepted and then dropped — visible in Resend's dashboard, never in the inbox. Fine for
+signing in as yourself; it will silently fail for a judge. A verified domain removes the restriction
+and is also what earns SPF/DKIM alignment.
+
+Either way: **sign in once before you present.** The session persists, so the demo path never
+touches email.
 
 ## Design notes
 

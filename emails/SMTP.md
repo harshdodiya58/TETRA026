@@ -1,10 +1,61 @@
-# Sending verification email for free
+# Sending verification email
 
 Supabase's built-in email service is for development. It allows only a couple of messages per hour
 on the free tier, is shared infrastructure, and lands in spam often. A second sign-in request simply
 never arrives — no error anywhere. Any real use needs custom SMTP.
 
-## The constraint that decides this: do you own a domain?
+**Current setup: Resend, sending from `onboarding@resend.dev`.**
+
+## ⚠️ Read this before demonstrating to anyone else
+
+`onboarding@resend.dev` is Resend's shared testing sender, and it **only delivers to the email
+address that owns the Resend account.** Mail to any other recipient is accepted by the API and then
+dropped — the dashboard shows it, the inbox never does.
+
+So:
+
+- Signing in as yourself: works.
+- A judge, a colleague, or a second test address: **silently fails.**
+
+The fix is a verified domain, which is also what earns SPF/DKIM alignment and keeps mail out of
+spam. Until then, either demonstrate from your own address or sign in before you present, because
+the session persists and the demo path never touches email.
+
+## Setting it up
+
+The API key goes into the **Supabase dashboard**, not into this repository — Supabase sends auth
+mail itself, so the app never holds the credential.
+
+1. Resend → **API Keys** → create one with **Sending access**.
+2. Supabase → **Project Settings → Authentication → SMTP Settings** → enable custom SMTP:
+
+   ```
+   Host            smtp.resend.com
+   Port            587
+   Username        resend            ← the literal word, not your email
+   Password        re_xxxxxxxxxxxx   ← the API key
+   Sender email    onboarding@resend.dev
+   Sender name     CurriPulse
+   ```
+
+3. Supabase → **Authentication → Rate Limits** → raise "Emails per hour". The built-in cap still
+   applies otherwise, which defeats the point of configuring SMTP at all.
+4. Send a test sign-in and check **Resend → Emails** for the delivery record.
+
+`onboarding@resend.dev` needs no domain verification, which is exactly why it carries the recipient
+restriction above.
+
+## Later: moving to a verified domain
+
+Resend → **Domains** → add yours → copy the DKIM/SPF records into your DNS. Then change **Sender
+email** to something on that domain, such as `no-reply@curripulse.in`. Nothing else changes, and the
+recipient restriction disappears.
+
+---
+
+## Alternatives, if Resend stops suiting
+
+The constraint that decides this is domain ownership.
 
 Most "free tier" email providers only let you send to **arbitrary recipients** once you have verified
 a **domain** by adding DNS records. On `curripulse.vercel.app` you cannot add DNS records, so those
