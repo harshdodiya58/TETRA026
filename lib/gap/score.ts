@@ -78,6 +78,8 @@ export type GapReport = {
   units: UnitAlignment[];
   missing: MissingSkill[];
   coveredSkillCount: number;
+  /** Ids of covered skills, for graph prerequisite reasoning. */
+  coveredSkillIds: string[];
   /** Skills judged relevant to this course — the alignment denominator. */
   inScopeSkillCount: number;
   /** Corpus skills excluded as outside the course's domain. */
@@ -136,6 +138,7 @@ export function analyseGap(
   let outOfScopeSkillCount = 0;
 
   const missing: MissingSkill[] = [];
+  const coveredSkillIds: string[] = [];
 
   corpus.forEach((entry, skillIndex) => {
     const best = bestUnitPerSkill[skillIndex];
@@ -153,6 +156,7 @@ export function analyseGap(
     if (best.similarity >= threshold) {
       coveredDemand += demand;
       coveredSkillCount += 1;
+      coveredSkillIds.push(entry.skill.id);
       return;
     }
 
@@ -231,6 +235,7 @@ export function analyseGap(
     units: unitAlignments,
     missing: missing.slice(0, 12),
     coveredSkillCount,
+    coveredSkillIds,
     inScopeSkillCount,
     outOfScopeSkillCount,
     totalSkillCount: corpus.length,

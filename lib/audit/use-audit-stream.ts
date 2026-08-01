@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import type { Stage, TelemetryEvent } from "@/lib/telemetry/bus";
 import type { SyllabusStructure } from "@/lib/syllabus/chunk";
 import type { GapReport } from "@/lib/gap/score";
+import type { GraphInsight } from "@/lib/graph/traverse";
 import type { SyllabusPatch } from "@/lib/patch/generate";
 import type { MarketId } from "@/data/job-market";
 
@@ -27,6 +28,8 @@ export type AuditResult = {
   structure: SyllabusStructure;
   /** Null when a prerequisite stage was skipped or failed. */
   gap: GapReport | null;
+  /** Null when Neo4j is unconfigured or unreachable. */
+  graph: GraphInsight | null;
 };
 
 export type RunState = "idle" | "running" | "done" | "failed";

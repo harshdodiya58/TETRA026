@@ -3,7 +3,9 @@ import { ParseError, parseSyllabus } from "@/lib/syllabus/parse";
 import { chunkSyllabus, type SyllabusStructure } from "@/lib/syllabus/chunk";
 import { embedBatch, isNimConfigured, EMBEDDING_DIM } from "@/lib/ai/nim";
 import { corpusMeta, loadCorpus } from "@/lib/gap/corpus";
-import { analyseGap } from "@/lib/gap/score";
+import { analyseGap, type GapReport } from "@/lib/gap/score";
+import { checkConnectivity, neo4jConfigProblem } from "@/lib/graph/neo4j";
+import { traverseSkillGraph } from "@/lib/graph/traverse";
 import { MARKETS, type MarketId } from "@/data/job-market";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/env";
@@ -140,10 +142,10 @@ async function runAudit(bus: TelemetryBus, file: File, market: MarketId) {
   });
 
   const gap = await runGapAnalysis(bus, structure, market);
+  const graph = await runGraphTraversal(bus, gap);
 
-  // Not built yet. Reported as not run rather than given a plausible number.
-  bus.skip("graph", "Neo4j skill graph lands in the next milestone.");
-  bus.skip("llm", "Patch generation lands after the graph stage.");
+  // Run on demand from /api/patch/stream, not as part of an audit.
+  bus.skip("llm", "Runs when a fast-track amendment is requested.");
   bus.skip("bloom", "Runs against generated Course Outcomes.");
   bus.skip("cap", "Runs against the generated patch.");
 
@@ -158,8 +160,61 @@ async function runAudit(bus: TelemetryBus, file: File, market: MarketId) {
       },
       structure,
       gap,
+      graph,
     },
   });
+}
+
+async function runGraphTraversal(bus: TelemetryBus, gap: GapReport | null) {
+  if (!gap) {
+    bus.skip("graph", "Requires a completed gap analysis.");
+    return null;
+  }
+
+  const problem = neo4jConfigProblem();
+  if (problem) {
+    bus.skip("graph", problem);
+    return null;
+  }
+
+  const health = await checkConnectivity();
+  if (!health.ok) {
+    // Unreachable is reported as unavailable, not silently omitted, and the
+    // audit continues on vector evidence alone.
+    bus.skip("graph", health.detail);
+    return null;
+  }
+
+  try {
+    return await bus.span("graph", async (sink) => {
+      const insight = await traverseSkillGraph(
+        gap.coveredSkillIds,
+        gap.missing.map((m) => m.id),
+      );
+
+      sink.metric("skill nodes", insight.skillNodes);
+      sink.metric("tool nodes", insight.toolNodes);
+      sink.metric("role nodes", insight.roleNodes);
+      sink.metric("REQUIRES edges", insight.prerequisiteEdges);
+      sink.metric("paths returned", insight.pathsReturned);
+      sink.metric("max hop depth", insight.maxHopDepth);
+      sink.metric("teachable now", insight.teachableNow.length);
+      sink.metric("needs groundwork", insight.needsGroundwork.length);
+
+      if (insight.skillNodes === 0) {
+        sink.note("The graph is empty — run scripts/seed-skill-graph.mjs.");
+      }
+
+      return insight;
+    });
+  } catch (error) {
+    bus.emit({
+      kind: "note",
+      stage: "graph",
+      message: error instanceof Error ? error.message : "Graph traversal failed.",
+    });
+    return null;
+  }
 }
 
 async function runGapAnalysis(

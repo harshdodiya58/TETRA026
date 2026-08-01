@@ -139,11 +139,11 @@ but logs a deprecation warning.
 | 2 | Supabase schema, RLS, RBAC, domain whitelist | 🟡 SQL written, not yet applied |
 | 3 | Syllabus ingestion and structural chunker | ✅ |
 | 4 | Embeddings and job-market corpus | ✅ in-memory; pgvector pending |
-| 5 | Neo4j skill graph and traversal | ◻ |
+| 5 | Neo4j skill graph and traversal | 🟡 built; blocked on credentials |
 | 6 | Telemetry bus and live processing HUD | ✅ |
 | 7 | Gap dashboard and obsolete-topic heatmap | ✅ |
-| 8 | 15% patch generation with Bloom's and PO validators | ◻ |
-| 9 | BoS proposal PDF/DOCX export | ◻ |
+| 8 | 15% patch generation with Bloom's and PO validators | ✅ |
+| 9 | BoS proposal Word / print export | ✅ |
 
 A full audit of the bundled sample currently runs in **~1.3s**: parse 1.7ms, chunk 2.6ms,
 embed 786ms (5 chunks, 6.4 vec/sec), vector 0.3ms, gap 3.7ms.
@@ -161,3 +161,25 @@ sessions.
 > The service-role key **cannot** run this. It authenticates against PostgREST, which does not
 > expose DDL. It has to go through the SQL editor, the Supabase CLI, or a direct Postgres
 > connection.
+
+## Seeding the skill graph
+
+```bash
+node scripts/seed-skill-graph.mjs
+```
+
+Idempotent — `MERGE` throughout, so re-running updates rather than duplicates.
+
+The graph answers a question the vector layer cannot. Vectors say *"pgvector is missing from this
+syllabus."* The graph says *"and this course already teaches indexing and embeddings, so it can be
+added without new groundwork"* — a far easier motion to carry at a Board of Studies than one
+assuming prerequisites the course never lays.
+
+⚠️ **Currently blocked on credentials.** The URI is correct and the instance is reachable, but Bolt
+returns `Neo.ClientError.Security.Unauthorized`. Check `NEO4J_PASSWORD` against the credentials file
+Aura issued at instance creation. Until it connects, the graph stage reports as not run and the
+audit continues on vector evidence alone.
+
+Note that `NEO4J_URI` must be the **Bolt** endpoint (`neo4j+s://<id>.databases.neo4j.io`), not a
+`console.neo4j.io` dashboard link. The config guard rejects the latter explicitly, because it is an
+easy copy to make and otherwise fails much later with a confusing error.

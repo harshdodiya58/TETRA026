@@ -17,6 +17,7 @@ import { TelemetryHud } from "@/components/audit/telemetry-hud";
 import { StructureReport } from "@/components/audit/structure-report";
 import { GapReportView } from "@/components/audit/gap-report";
 import { PatchView } from "@/components/audit/patch-view";
+import { GraphInsightView } from "@/components/audit/graph-insight";
 import { ProposalDocument } from "@/components/audit/proposal-document";
 import { buildProposal, proposalFilename } from "@/lib/export/proposal";
 import { useAuditStream } from "@/lib/audit/use-audit-stream";
@@ -274,6 +275,12 @@ export function AuditWorkspace() {
               {result.gap && (
                 <section className="panel lift rounded-lg p-7">
                   <GapReportView report={result.gap} />
+                </section>
+              )}
+
+              {result.graph && (
+                <section className="panel lift rounded-lg p-7">
+                  <GraphInsightView insight={result.graph} />
                 </section>
               )}
 
