@@ -35,6 +35,9 @@ yarn-error.log*
 # ...but the template carries no secrets and must be committed.
 !.env.local.example
 
+# generated email previews
+/emails/preview/
+
 # vercel
 .vercel
 
