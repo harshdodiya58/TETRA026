@@ -150,13 +150,33 @@ embed 786ms (5 chunks, 6.4 vec/sec), vector 0.3ms, gap 3.7ms.
 
 ## Applying the database schema
 
-`supabase/migrations/0001_init.sql` is paste-ready and idempotent. Open the Supabase SQL editor,
-paste the whole file, run it once. It creates the institution/profile/session/document/chunk tables,
-the job-market corpus tables, HNSW indexes, a signup trigger that provisions a profile and
-institution from the email domain, and institution-scoped RLS on every table.
+Run both files in the Supabase SQL editor, in order. Both are idempotent.
 
-Until it is applied the app runs entirely in memory — audits work, but nothing is persisted between
-sessions.
+```
+supabase/migrations/0001_init.sql          tables, RLS, signup trigger, HNSW indexes
+supabase/migrations/0002_hnsw_ef_search.sql fixes silent truncation in match_job_skills
+```
+
+Then seed the corpus:
+
+```bash
+node scripts/seed-supabase-corpus.mjs
+```
+
+### Why 0002 matters
+
+An HNSW index scan returns at most `hnsw.ef_search` candidates, and that setting **defaults to 40**.
+`match_job_skills` was therefore capped at 40 rows no matter what `match_count` asked for — a
+request for 100 returned 40, with no error and no warning.
+
+That is quietly damaging here. The audit needs the *full* similarity row per unit, because the
+relevance floor and coverage cutoff are derived from the mean and standard deviation of the whole
+distribution. Truncation does not merely hide a few skills; it shifts every threshold and therefore
+the headline alignment figure. 0002 raises `ef_search` per call, scoped to the transaction.
+
+The bug surfaced because the similarity layer refuses to accept a partial result: a skill missing
+from the response is treated as a hard failure rather than scored as zero similarity. It fell back
+to the local corpus and reported exactly which skill was absent.
 
 > The service-role key **cannot** run this. It authenticates against PostgREST, which does not
 > expose DDL. It has to go through the SQL editor, the Supabase CLI, or a direct Postgres

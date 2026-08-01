@@ -2,7 +2,9 @@ import { TelemetryBus, encodeSSE, type TelemetryEvent } from "@/lib/telemetry/bu
 import { ParseError, parseSyllabus } from "@/lib/syllabus/parse";
 import { chunkSyllabus, type SyllabusStructure } from "@/lib/syllabus/chunk";
 import { embedBatch, isNimConfigured, EMBEDDING_DIM } from "@/lib/ai/nim";
-import { corpusMeta, loadCorpus } from "@/lib/gap/corpus";
+import { corpusMeta } from "@/lib/gap/corpus";
+import { buildSimilarityMatrix } from "@/lib/gap/similarity";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { analyseGap, type GapReport } from "@/lib/gap/score";
 import { checkConnectivity, neo4jConfigProblem } from "@/lib/graph/neo4j";
 import { traverseSkillGraph } from "@/lib/graph/traverse";
@@ -27,8 +29,10 @@ export async function POST(request: Request) {
   // This endpoint spends NVIDIA NIM credits on every call, so it must not be
   // reachable anonymously. proxy.ts guards the /audit page but deliberately
   // does not cover /api, so the check belongs here.
+  let supabase: SupabaseClient | null = null;
+
   if (isSupabaseConfigured) {
-    const supabase = await createClient();
+    supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -73,7 +77,7 @@ export async function POST(request: Request) {
       const unsubscribe = bus.subscribe(send);
 
       try {
-        await runAudit(bus, file, market);
+        await runAudit(bus, file, market, supabase);
       } catch (error) {
         bus.emit({
           kind: "fatal",
@@ -102,7 +106,12 @@ export async function POST(request: Request) {
   });
 }
 
-async function runAudit(bus: TelemetryBus, file: File, market: MarketId) {
+async function runAudit(
+  bus: TelemetryBus,
+  file: File,
+  market: MarketId,
+  supabase: SupabaseClient | null,
+) {
   const parsed = await bus.span("parse", async (sink) => {
     const document = await parseSyllabus(file);
     sink.metric("file", file.name);
@@ -141,7 +150,7 @@ async function runAudit(bus: TelemetryBus, file: File, market: MarketId) {
     return result;
   });
 
-  const gap = await runGapAnalysis(bus, structure, market);
+  const gap = await runGapAnalysis(bus, structure, market, supabase);
   const graph = await runGraphTraversal(bus, gap);
 
   // Run on demand from /api/patch/stream, not as part of an audit.
@@ -221,6 +230,7 @@ async function runGapAnalysis(
   bus: TelemetryBus,
   structure: SyllabusStructure,
   market: MarketId,
+  supabase: SupabaseClient | null,
 ) {
   if (structure.units.length === 0) {
     bus.skip("embed", "No units were recovered to embed.");
@@ -269,13 +279,14 @@ async function runGapAnalysis(
     return null;
   }
 
-  const corpus = await bus.span("vector", async (sink) => {
-    const entries = loadCorpus();
+  const similarity = await bus.span("vector", async (sink) => {
     const meta = corpusMeta();
+    const result = await buildSimilarityMatrix(unitVectors, supabase);
 
-    sink.metric("corpus skills", entries.length);
-    sink.metric("comparisons", entries.length * unitVectors.length);
-    sink.metric("index", "in-memory exact");
+    sink.metric("source", result.source === "pgvector" ? "pgvector HNSW" : "in-memory exact");
+    sink.metric("corpus skills", result.skills.length);
+    sink.metric("comparisons", result.skills.length * unitVectors.length);
+    sink.metric("query", result.queryMs, "ms");
     sink.metric("dimension", meta.dim);
 
     if (meta.dim !== EMBEDDING_DIM) {
@@ -283,15 +294,13 @@ async function runGapAnalysis(
         `Corpus was embedded at ${meta.dim} dimensions but the runtime model returns ${EMBEDDING_DIM}. Re-run the seed script.`,
       );
     }
-    // pgvector HNSW replaces the exact scan once the schema exists; at 45
-    // skills an exact scan is faster than an index would be anyway.
-    sink.note("Exact scan over the seeded corpus — pgvector HNSW pending database access.");
+    if (result.note) sink.note(result.note);
 
-    return entries;
+    return result;
   });
 
   return bus.span("gap", async (sink) => {
-    const report = analyseGap(structure.units, unitVectors, corpus, market);
+    const report = analyseGap(structure.units, similarity.skills, similarity.matrix, market);
 
     sink.metric("market", market);
     sink.metric("alignment", report.alignment.toFixed(1), "%");

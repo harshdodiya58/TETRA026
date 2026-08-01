@@ -23,6 +23,15 @@ export const allowedEmailDomains = (
   .map((d) => d.trim().toLowerCase())
   .filter(Boolean);
 
-export const siteUrl =
+/**
+ * Origin used to build magic-link redirects.
+ *
+ * The trailing slash is stripped because callers append "/auth/callback", and
+ * an origin pasted from a browser address bar usually carries one — producing
+ * "https://host//auth/callback", which Supabase will not match against the
+ * configured redirect allow-list.
+ */
+export const siteUrl = (
   process.env.NEXT_PUBLIC_SITE_URL ??
-  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000")
+).replace(/\/+$/, "");

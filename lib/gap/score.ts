@@ -1,6 +1,4 @@
 import { demandFor, type JobSkill, type MarketId } from "@/data/job-market";
-import { cosineSimilarity } from "@/lib/gap/vector";
-import type { CorpusEntry } from "@/lib/gap/corpus";
 import type { SyllabusUnit } from "@/lib/syllabus/chunk";
 
 /**
@@ -93,23 +91,30 @@ export type GapReport = {
 /** The Board of Studies fast-track ceiling. */
 export const MODIFICATION_CAP = 0.15;
 
+/**
+ * @param skills corpus skills, in the same column order as `matrix`
+ * @param matrix cosine similarity, matrix[unitIndex][skillIndex]. Supplied by
+ *        the caller so the distance computation can come from pgvector or from
+ *        the in-memory fallback without duplicating any scoring logic here.
+ */
 export function analyseGap(
   units: SyllabusUnit[],
-  unitVectors: number[][],
-  corpus: CorpusEntry[],
+  skills: JobSkill[],
+  matrix: number[][],
   market: MarketId,
 ): GapReport {
-  if (units.length !== unitVectors.length) {
+  if (units.length !== matrix.length) {
     throw new Error(
-      `Unit/vector count mismatch: ${units.length} units, ${unitVectors.length} vectors.`,
+      `Unit/row count mismatch: ${units.length} units, ${matrix.length} similarity rows.`,
+    );
+  }
+  if (matrix.length > 0 && matrix[0].length !== skills.length) {
+    throw new Error(
+      `Skill/column count mismatch: ${skills.length} skills, ${matrix[0].length} columns.`,
     );
   }
 
-  // Full similarity matrix: units × skills.
-  const matrix: number[][] = unitVectors.map((unitVector) =>
-    corpus.map((entry) => cosineSimilarity(unitVector, entry.vector)),
-  );
-
+  const corpus = skills.map((skill) => ({ skill }));
   const flat = matrix.flat();
   const mean = flat.reduce((a, b) => a + b, 0) / (flat.length || 1);
   const variance = flat.reduce((sum, v) => sum + (v - mean) ** 2, 0) / (flat.length || 1);
